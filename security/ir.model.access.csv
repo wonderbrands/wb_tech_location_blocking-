@@ -1,0 +1,4 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_wb_stock_location_block_wizard,wb.stock.location.block.wizard,model_wb_stock_location_block_wizard,stock.group_stock_user,1,1,1,1
+access_wb_stock_location_unblock_wizard,wb.stock.location.unblock.wizard,model_wb_stock_location_unblock_wizard,stock.group_stock_user,1,1,1,1
+access_stock_location_block_history,stock.location.block.history,model_stock_location_block_history,stock.group_stock_user,1,1,1,1

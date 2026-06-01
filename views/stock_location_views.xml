@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <record id="view_location_form_inherit_blocking" model="ir.ui.view">
+            <field name="name">stock.location.form.inherit.blocking</field>
+            <field name="model">stock.location</field>
+            <field name="inherit_id" ref="stock.view_location_form"/>
+            <field name="arch" type="xml">
+                <xpath expr="//sheet" position="before">
+                    <field name="is_block_expired" invisible="1"/>
+                    <div class="alert alert-danger text-center o_form_header" role="alert" invisible="not is_block_expired">
+                        <strong>¡Aviso!</strong> Esta ubicación ya debía haber sido desbloqueada.
+                    </div>
+                    <header>
+                        <button name="action_open_block_wizard" string="Bloquear Ubicación" type="object" class="oe_highlight" invisible="original_parent_id != False"/>
+                        <button name="action_unblock" string="Desbloquear Ubicación" type="object" class="btn-secondary" invisible="original_parent_id == False"/>
+                    </header>
+                </xpath>
+                <xpath expr="//group[@name='additional_info']" position="inside">
+                    <field name="block_reason_type" readonly="1" invisible="not block_reason_type"/>
+                    <field name="block_reason" string="Comentario de Bloqueo" readonly="1" invisible="not block_reason"/>
+                    <field name="block_ticket" readonly="1" invisible="not block_ticket"/>
+                    <field name="block_date" readonly="1" invisible="not block_date"/>
+                    <field name="block_expiration_date" readonly="1" invisible="not block_expiration_date"/>
+                    <field name="block_user_id" readonly="1" invisible="not block_user_id"/>
+                    <field name="original_parent_id" readonly="1" invisible="not original_parent_id"/>
+                    <field name="reporting_parent_id" readonly="1" invisible="not original_parent_id"/>
+                </xpath>
+                <xpath expr="//sheet" position="inside">
+                    <notebook>
+                        <page string="Historial de Bloqueos" name="block_history">
+                            <field name="block_history_ids" readonly="1">
+                                <list string="Historial de Bloqueos">
+                                    <field name="date"/>
+                                    <field name="event_type" widget="badge" decoration-warning="event_type == 'block'" decoration-success="event_type == 'unblock'"/>
+                                    <field name="block_reason_type"/>
+                                    <field name="user_id"/>
+                                    <field name="ticket"/>
+                                    <field name="comment"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </xpath>
+            </field>
+        </record>
+
+        <!-- REPORTING VIEWS FOR BLOCKED LOCATIONS -->
+        <record id="view_stock_location_blocked_tree" model="ir.ui.view">
+            <field name="name">stock.location.blocked.tree</field>
+            <field name="model">stock.location</field>
+            <field name="arch" type="xml">
+                <list string="Ubicaciones Bloqueadas" create="false" edit="false" delete="false" decoration-danger="is_block_expired">
+                    <field name="is_block_expired" column_invisible="1"/>
+                    <field name="complete_name"/>
+                    <field name="block_reason_type" decoration-info="block_reason_type == 'ciclico'" decoration-danger="block_reason_type == 'no_apto'"/>
+                    <field name="original_parent_id"/>
+                    <field name="reporting_parent_id"/>
+                    <field name="block_date"/>
+                    <field name="block_expiration_date"/>
+                    <field name="block_age_days"/>
+                    <field name="block_user_id"/>
+                    <field name="block_ticket"/>
+                    <field name="block_reason"/>
+                </list>
+            </field>
+        </record>
+
+        <record id="view_stock_location_blocked_pivot" model="ir.ui.view">
+            <field name="name">stock.location.blocked.pivot</field>
+            <field name="model">stock.location</field>
+            <field name="arch" type="xml">
+                <pivot string="Análisis de Ubicaciones Bloqueadas">
+                    <field name="reporting_parent_id" type="row"/>
+                    <field name="block_reason_type" type="col"/>
+                    <field name="block_age_days" type="measure"/>
+                </pivot>
+            </field>
+        </record>
+
+        <record id="view_stock_location_blocked_search" model="ir.ui.view">
+            <field name="name">stock.location.blocked.search</field>
+            <field name="model">stock.location</field>
+            <field name="arch" type="xml">
+                <search string="Buscar Ubicaciones Bloqueadas">
+                    <field name="name"/>
+                    <field name="complete_name"/>
+                    <field name="original_parent_id"/>
+                    <field name="reporting_parent_id"/>
+                    <filter string="Cíclico" name="filter_ciclico" domain="[('block_reason_type', '=', 'ciclico')]"/>
+                    <filter string="No Apta" name="filter_no_apto" domain="[('block_reason_type', '=', 'no_apto')]"/>
+                    <separator/>
+                    <filter string="Bloqueos Vencidos" name="filter_expired_blocks" domain="[('block_expiration_date', '&lt;', context_today().strftime('%Y-%m-%d'))]"/>
+                    <filter string="Bloqueos > 7 días" name="filter_old_blocks" domain="[('block_date', '&lt;', (context_today() - datetime.timedelta(days=7)).strftime('%Y-%m-%d'))]"/>
+                    <group expand="0" string="Agrupar por...">
+                        <filter string="Motivo de Bloqueo" name="group_by_reason" context="{'group_by': 'block_reason_type'}"/>
+                        <filter string="Ubicación Padre Original (Reportes)" name="group_by_parent" context="{'group_by': 'reporting_parent_id'}"/>
+                        <filter string="Usuario" name="group_by_user" context="{'group_by': 'block_user_id'}"/>
+                    </group>
+                </search>
+            </field>
+        </record>
+
+        <record id="action_stock_location_blocked_report" model="ir.actions.act_window">
+            <field name="name">Reporte de Bloqueos</field>
+            <field name="res_model">stock.location</field>
+            <field name="view_mode">list,pivot,form</field>
+            <field name="domain">[('original_parent_id', '!=', False)]</field>
+            <field name="search_view_id" ref="view_stock_location_blocked_search"/>
+            <field name="context">{'search_default_group_by_reason': 1}</field>
+        </record>
+
+        <!-- Menu Item under Inventory -> Reporting -->
+        <menuitem id="menu_stock_location_blocked_report"
+                  name="Ubicaciones Bloqueadas"
+                  parent="stock.menu_warehouse_report"
+                  action="action_stock_location_blocked_report"
+                  sequence="150"/>
+
+        <!-- Mass Block Action under location list view -->
+        <record id="action_server_mass_block_locations" model="ir.actions.act_window">
+            <field name="name">Bloqueo Masivo</field>
+            <field name="res_model">wb.stock.location.block.wizard</field>
+            <field name="view_mode">form</field>
+            <field name="target">new</field>
+            <field name="binding_model_id" ref="stock.model_stock_location"/>
+            <field name="binding_view_types">list</field>
+        </record>
+    </data>
+</odoo>

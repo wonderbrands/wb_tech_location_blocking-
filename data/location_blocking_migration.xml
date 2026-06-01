@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <record id="location_blocked_ciclico" model="stock.location">
+            <field name="name">Ciclico</field>
+            <field name="location_id" ref="wmds.location_blocked"/>
+            <field name="usage">internal</field>
+        </record>
+
+        <record id="location_blocked_no_apto" model="stock.location">
+            <field name="name">NoApta</field>
+            <field name="location_id" ref="wmds.location_blocked"/>
+            <field name="usage">internal</field>
+        </record>
+
+        <record id="location_blocked_sobredimensionada" model="stock.location">
+            <field name="name">Sobredimensionada</field>
+            <field name="location_id" ref="wmds.location_blocked"/>
+            <field name="usage">internal</field>
+        </record>
+
+        <record id="location_blocked_cuarentena" model="stock.location">
+            <field name="name">Cuarentena</field>
+            <field name="location_id" ref="wmds.location_blocked"/>
+            <field name="usage">internal</field>
+        </record>
+    </data>
+</odoo>

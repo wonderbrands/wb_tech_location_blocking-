@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <record id="view_stock_location_block_wizard_form" model="ir.ui.view">
+            <field name="name">stock.location.block.wizard.form</field>
+            <field name="model">wb.stock.location.block.wizard</field>
+            <field name="arch" type="xml">
+                <form string="Bloquear Ubicación">
+                    <group>
+                        <field name="location_ids" widget="many2many_tags" readonly="1"/>
+                        <field name="block_reason_type"/>
+                        <field name="ticket" required="block_reason_type == 'no_apto'" invisible="block_reason_type != 'no_apto'"/>
+                        <field name="expiration_date"/>
+                        <field name="comment" placeholder="Ej: Auditoría de Inventario / Daño físico en estantería"/>
+                    </group>
+                    <footer>
+                        <button name="action_block" string="Confirmar Bloqueo" type="object" class="oe_highlight"/>
+                        <button string="Cancelar" class="btn-secondary" special="cancel"/>
+                    </footer>
+                </form>
+            </field>
+        </record>
+
+        <record id="action_stock_location_block_wizard" model="ir.actions.act_window">
+            <field name="name">Bloquear Ubicación</field>
+            <field name="res_model">wb.stock.location.block.wizard</field>
+            <field name="view_mode">form</field>
+            <field name="target">new</field>
+        </record>
+    </data>
+</odoo>

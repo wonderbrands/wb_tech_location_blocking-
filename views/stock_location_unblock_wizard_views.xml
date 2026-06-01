@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <record id="view_stock_location_unblock_wizard_form" model="ir.ui.view">
+            <field name="name">stock.location.unblock.wizard.form</field>
+            <field name="model">wb.stock.location.unblock.wizard</field>
+            <field name="arch" type="xml">
+                <form string="Confirmar Desbloqueo de Ubicación">
+                    <group>
+                        <field name="location_id" readonly="1"/>
+                        <field name="is_repaired"/>
+                        <field name="comment" placeholder="Ej: Reparación de estantería completada y validada."/>
+                    </group>
+                    <footer>
+                        <button name="action_confirm_unblock" string="Confirmar Desbloqueo" type="object" class="oe_highlight"/>
+                        <button string="Cancelar" class="btn-secondary" special="cancel"/>
+                    </footer>
+                </form>
+            </field>
+        </record>
+    </data>
+</odoo>
