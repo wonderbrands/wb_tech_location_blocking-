@@ -18,5 +18,32 @@
                 </form>
             </field>
         </record>
+        <record id="view_stock_location_mass_unblock_wizard_form" model="ir.ui.view">
+            <field name="name">stock.location.mass.unblock.wizard.form</field>
+            <field name="model">wb.stock.location.mass.unblock.wizard</field>
+            <field name="arch" type="xml">
+                <form string="Desbloquear Ubicaciones">
+                    <p class="alert alert-warning">
+                        ¿Seguro deseas desbloquear las posiciones seleccionadas? Esta acción revertirá el bloqueo y limpiará los comentarios asociados.
+                    </p>
+                    <group>
+                        <field name="location_ids" widget="many2many_tags" readonly="1"/>
+                    </group>
+                    <footer>
+                        <button name="action_confirm_unblock" string="Confirmar" type="object" class="oe_highlight"/>
+                        <button string="Cancelar" class="btn-secondary" special="cancel"/>
+                    </footer>
+                </form>
+            </field>
+        </record>
+
+        <record id="action_stock_location_mass_unblock_wizard" model="ir.actions.act_window">
+            <field name="name">Desbloquear Ubicaciones</field>
+            <field name="res_model">wb.stock.location.mass.unblock.wizard</field>
+            <field name="view_mode">form</field>
+            <field name="target">new</field>
+            <field name="binding_model_id" ref="stock.model_stock_location"/>
+            <field name="binding_view_types">list</field>
+        </record>
     </data>
 </odoo>

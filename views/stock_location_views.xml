@@ -14,7 +14,7 @@
                     <header>
                         <button name="action_open_block_wizard" string="Bloquear Ubicación" type="object" class="oe_highlight" invisible="original_parent_id != False"/>
                         <button name="action_open_oversized_wizard" string="Sobredimensionar" type="object" class="oe_highlight" invisible="original_parent_id != False"/>
-                        <button name="action_unblock" string="Desbloquear Ubicación" type="object" class="btn-secondary" invisible="original_parent_id == False"/>
+                        <button name="action_unblock" string="Desbloquear Ubicación" type="object" class="btn-secondary" invisible="original_parent_id == False" confirm="¿Seguro deseas desbloquear esta posición?"/>
                     </header>
                 </xpath>
                 <xpath expr="//group[@name='additional_info']" position="inside">
@@ -151,6 +151,25 @@
             <field name="target">new</field>
             <field name="binding_model_id" ref="stock.model_stock_location"/>
             <field name="binding_view_types">list</field>
+        </record>
+
+
+        <!-- Search View Inheritance for stock.location -->
+        <record id="view_location_search_inherit_blocking" model="ir.ui.view">
+            <field name="name">stock.location.search.inherit.blocking</field>
+            <field name="model">stock.location</field>
+            <field name="inherit_id" ref="stock.view_location_search"/>
+            <field name="arch" type="xml">
+                <xpath expr="//search" position="inside">
+                    <field name="loc_pasillo" string="Pasillo"/>
+                    <field name="loc_posicion" string="Posición"/>
+                    <field name="loc_frente" string="Frente"/>
+                    <field name="loc_nivel" string="Nivel"/>
+                    <separator/>
+                    <filter string="Ubicaciones Bloqueadas" name="filter_blocked_locations" domain="[('original_parent_id', '!=', False)]"/>
+                    <filter string="Bloqueos Expirados" name="filter_expired_blocks" domain="[('original_parent_id', '!=', False), ('block_expiration_date', '&lt;', context_today().strftime('%Y-%m-%d'))]"/>
+                </xpath>
+            </field>
         </record>
     </data>
 </odoo>

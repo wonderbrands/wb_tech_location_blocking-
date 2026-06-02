@@ -116,15 +116,6 @@ class TestLocationBlocking(TransactionCase):
         with self.assertRaises(UserError):
             wizard1.action_block()
 
-        # 2. Leader tries to block as no_apto WITHOUT ticket -> raises UserError
-        wizard2 = self.env['wb.stock.location.block.wizard'].with_user(self.leader_user).create({
-            'location_ids': [(6, 0, [self.pos1.id])],
-            'block_reason_type': 'no_apto',
-            'comment': 'No ticket comment'
-        })
-        with self.assertRaises(UserError):
-            wizard2.action_block()
-
         # 3. Leader tries to block as no_apto WITH product in position -> raises UserError
         # Place some quant
         product = self.env['product.product'].create({

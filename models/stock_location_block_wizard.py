@@ -35,19 +35,10 @@ class StockLocationBlockWizard(models.TransientModel):
         # 1. Check permissions by reason type
         if self.block_reason_type == 'ciclico':
             raise UserError("No se puede bloquear por motivo Cíclico usando este asistente. Debe realizarse a través de WMDS.")
-        elif self.block_reason_type == 'no_apto':
+        elif self.block_reason_type in ('no_apto', 'danado', 'onsite'):
             if not self.env.user.has_group('wb_tech_location_blocking.group_lider_de_turno'):
-                raise UserError("Solo el Líder de turno puede bloquear una ubicación como No Apta.")
-            if not self.ticket:
-                raise UserError("El ticket de mantenimiento es obligatorio para el motivo No Apta.")
-        elif self.block_reason_type == 'danado':
-            if not self.env.user.has_group('wb_tech_location_blocking.group_lider_de_turno'):
-                raise UserError("Solo el Líder de turno puede bloquear una ubicación como Dañada.")
-            if not self.ticket:
-                raise UserError("El ticket de mantenimiento es obligatorio para el motivo Dañada.")
-        elif self.block_reason_type == 'onsite':
-            if not self.env.user.has_group('wb_tech_location_blocking.group_lider_de_turno'):
-                raise UserError("Solo el Líder de turno puede bloquear una ubicación por motivo Onsite.")
+                liders = self.env.ref('wb_tech_location_blocking.group_lider_de_turno').users.mapped('name')
+                raise UserError(f"Solo el Líder de turno puede realizar esta acción. Solicita a alguno de los siguientes usuarios que bloqueen esta ubicación: {', '.join(liders)}")
 
         # 2. Process each location
         for location in self.location_ids:

@@ -34,6 +34,7 @@
         'views/stock_location_block_wizard_views.xml',
         'views/stock_location_unblock_wizard_views.xml',
         'views/stock_location_oversized_wizard_views.xml',
+        'views/report_stock_locations.xml',
     ],
     'installable': True,
     'application': False,

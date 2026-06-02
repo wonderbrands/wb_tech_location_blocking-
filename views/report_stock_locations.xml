@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <record id="action_report_stock_locations" model="ir.actions.report">
+            <field name="name">Reporte de Ubicaciones</field>
+            <field name="model">stock.location</field>
+            <field name="report_type">qweb-pdf</field>
+            <field name="report_name">wb_tech_location_blocking.report_stock_locations_template</field>
+            <field name="report_file">wb_tech_location_blocking.report_stock_locations_template</field>
+            <field name="print_report_name">'Reporte_Ubicaciones'</field>
+            <field name="binding_model_id" ref="stock.model_stock_location"/>
+            <field name="binding_view_types">list,form</field>
+        </record>
+
+        <template id="report_stock_locations_template">
+            <t t-call="web.html_container">
+                <t t-call="web.external_layout">
+                    <div class="page">
+                        <style>
+                            .report-header {
+                                border-bottom: 2px solid #1a365d;
+                                padding-bottom: 12px;
+                                margin-bottom: 20px;
+                            }
+                            .report-title {
+                                color: #1a365d;
+                                font-size: 24px;
+                                font-weight: bold;
+                                margin: 0;
+                            }
+                            .report-subtitle {
+                                color: #718096;
+                                font-size: 12px;
+                                margin-top: 4px;
+                            }
+                            .table-locations {
+                                width: 100%;
+                                border-collapse: collapse;
+                                margin-top: 15px;
+                                font-size: 11px;
+                            }
+                            .table-locations th {
+                                background-color: #1a365d;
+                                color: #ffffff;
+                                padding: 8px 10px;
+                                text-align: left;
+                                font-weight: 600;
+                                border: 1px solid #1a365d;
+                            }
+                            .table-locations td {
+                                padding: 6px 10px;
+                                border: 1px solid #e2e8f0;
+                                vertical-align: top;
+                            }
+                            .table-locations tr:nth-child(even) {
+                                background-color: #f7fafc;
+                            }
+                            .badge {
+                                display: inline-block;
+                                padding: 3px 6px;
+                                font-size: 9px;
+                                font-weight: bold;
+                                border-radius: 3px;
+                                text-transform: uppercase;
+                            }
+                            .badge-success {
+                                background-color: #c6f6d5;
+                                color: #22543d;
+                            }
+                            .badge-danger {
+                                background-color: #fed7d7;
+                                color: #742a2a;
+                            }
+                            .blocked-info {
+                                line-height: 1.3;
+                            }
+                            .blocked-info strong {
+                                color: #4a5568;
+                            }
+                        </style>
+                        
+                        <div class="report-header">
+                            <div class="row">
+                                <div class="col-8">
+                                    <h2 class="report-title">Reporte de Ubicaciones</h2>
+                                    <div class="report-subtitle">
+                                        Generado el: <span t-out="context_today().strftime('%d/%m/%Y')"/>
+                                    </div>
+                                </div>
+                                <div class="col-4 text-right">
+                                    <span style="font-size: 12px; font-weight: bold; color: #4a5568;">
+                                        Total registros: <span t-out="len(docs)"/>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <table class="table-locations">
+                            <thead>
+                                <tr>
+                                    <th style="width: 25%;">Nombre Completo</th>
+                                    <th style="width: 8%;">Pasillo</th>
+                                    <th style="width: 8%;">Posición</th>
+                                    <th style="width: 8%;">Frente</th>
+                                    <th style="width: 8%;">Nivel</th>
+                                    <th style="width: 10%; text-align: center;">Estado</th>
+                                    <th style="width: 33%;">Detalle / Comentario de Bloqueo</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <t t-foreach="docs" t-as="doc">
+                                    <tr>
+                                        <td>
+                                            <span t-field="doc.complete_name"/>
+                                        </td>
+                                        <td>
+                                            <span t-field="doc.loc_pasillo"/>
+                                        </td>
+                                        <td>
+                                            <span t-field="doc.loc_posicion"/>
+                                        </td>
+                                        <td>
+                                            <span t-field="doc.loc_frente"/>
+                                        </td>
+                                        <td>
+                                            <span t-field="doc.loc_nivel"/>
+                                        </td>
+                                        <td style="text-align: center; vertical-align: middle;">
+                                            <t t-if="doc.original_parent_id">
+                                                <span class="badge badge-danger">Bloqueado</span>
+                                            </t>
+                                            <t t-else="">
+                                                <span class="badge badge-success">Disponible</span>
+                                            </t>
+                                        </td>
+                                        <td>
+                                            <t t-if="doc.original_parent_id">
+                                                <div class="blocked-info">
+                                                    <strong>Tipo:</strong> <span t-field="doc.block_reason_type"/><br/>
+                                                    <strong>Por:</strong> <span t-field="doc.block_user_id.name"/><br/>
+                                                    <strong>Comentario:</strong> <span t-field="doc.block_reason"/>
+                                                    <t t-if="doc.block_expiration_date">
+                                                        <br/><strong>Expiración:</strong> <span t-field="doc.block_expiration_date"/>
+                                                    </t>
+                                                </div>
+                                            </t>
+                                            <t t-else="">
+                                                <span class="text-muted">-</span>
+                                            </t>
+                                        </td>
+                                    </tr>
+                                </t>
+                            </tbody>
+                        </table>
+                    </div>
+                </t>
+            </t>
+        </template>
+    </data>
+</odoo>

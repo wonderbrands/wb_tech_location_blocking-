@@ -165,8 +165,8 @@ class StockLocation(models.Model):
 
         if self.block_reason_type in ('no_apto', 'danado', 'onsite'):
             if not self.env.user.has_group('wb_tech_location_blocking.group_lider_de_turno'):
-                reason_label = dict(self._fields['block_reason_type'].selection).get(self.block_reason_type, self.block_reason_type)
-                raise UserError(f"Solo el Líder de turno puede desbloquear una ubicación {reason_label}.")
+                liders = self.env.ref('wb_tech_location_blocking.group_lider_de_turno').users.mapped('name')
+                raise UserError(f"Solo el Líder de turno puede realizar esta acción. Solicita a alguno de los siguientes usuarios que desbloqueen esta ubicación: {', '.join(liders)}")
             return {
                 'name': 'Confirmar Desbloqueo',
                 'type': 'ir.actions.act_window',
@@ -477,4 +477,55 @@ class StockLocation(models.Model):
 
         return res
 
+    def init(self):
+        super().init()
+        # Find WH location (which has parent_id = False, and name = 'WH')
+        wh = self.env['stock.location'].search([('name', '=', 'WH'), ('location_id', '=', False)], limit=1)
+        if not wh:
+            # Fallback to stock location parent
+            stock_loc = self.env.ref('stock.stock_location_stock', raise_if_not_found=False)
+            if stock_loc:
+                wh = stock_loc.location_id
 
+        if wh:
+            # Set parent of Bloqueado to WH
+            wmds_blocked = self.env.ref('wmds.location_blocked', raise_if_not_found=False)
+            if wmds_blocked and wmds_blocked.location_id != wh:
+                wmds_blocked.write({'location_id': wh.id})
+                _logger.info("Set parent of wmds.location_blocked to WH")
+
+            # Set parent of Cuarentena to WH
+            cuarentena = self.env.ref('wb_tech_location_blocking.location_blocked_cuarentena', raise_if_not_found=False)
+            if cuarentena and cuarentena.location_id != wh:
+                cuarentena.write({'location_id': wh.id})
+                _logger.info("Set parent of location_blocked_cuarentena to WH")
+
+    def action_mass_unblock(self):
+        blocked_records = self.filtered(lambda r: r.original_parent_id)
+        if not blocked_records:
+            return True
+
+        # Check permissions: if any is blocked as no_apto, danado, or onsite
+        requires_lider = blocked_records.filtered(
+            lambda r: r.block_reason_type in ('no_apto', 'danado', 'onsite')
+        )
+        if requires_lider and not self.env.user.has_group('wb_tech_location_blocking.group_lider_de_turno'):
+            liders = self.env.ref('wb_tech_location_blocking.group_lider_de_turno').users.mapped('name')
+            raise UserError(f"Solo el Líder de turno puede realizar esta acción. Solicita a alguno de los siguientes usuarios que desbloqueen estas ubicaciones: {', '.join(liders)}")
+
+        # Check cyclic or quarantine
+        for rec in blocked_records:
+            if rec.block_reason_type == 'ciclico':
+                raise UserError(f"La ubicación {rec.complete_name} está en conteo cíclico y no se puede desbloquear manualmente.")
+            is_quarantine = (
+                rec.block_reason_type == 'cuarentena' or
+                (rec.block_reason and 'cuarentena' in rec.block_reason.lower()) or
+                (rec.location_id and 'cuarentena' in (rec.location_id.complete_name or '').lower())
+            )
+            if is_quarantine:
+                raise UserError(f"La ubicación {rec.complete_name} está en cuarentena y no se puede desbloquear manualmente.")
+
+        for rec in blocked_records:
+            rec._do_unblock(comment="Desbloqueo masivo.")
+
+        return True
