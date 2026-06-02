@@ -21,6 +21,8 @@ def post_init_hook(env):
     # 2. Get the new sub-child locations
     ciclico_dest = env.ref('wb_tech_location_blocking.location_blocked_ciclico', raise_if_not_found=False)
     no_apto_dest = env.ref('wb_tech_location_blocking.location_blocked_no_apto', raise_if_not_found=False)
+    danado_dest = env.ref('wb_tech_location_blocking.location_blocked_danado', raise_if_not_found=False)
+    onsite_dest = env.ref('wb_tech_location_blocking.location_blocked_onsite', raise_if_not_found=False)
     
     if not ciclico_dest or not no_apto_dest:
         _logger.warning("Sub-child blocked locations not found. Skipping migration.")
@@ -40,13 +42,23 @@ def post_init_hook(env):
         # If block_reason_type is not set, try to infer it from the textual block_reason
         if not reason_type:
             reason_text = (loc.block_reason or '').lower()
-            if any(x in reason_text for x in ['no apto', 'no_apto', 'dañado', 'danado', 'mantenimiento', 'incidencia', 'daño', 'daño estructural']):
+            if any(x in reason_text for x in ['dañado', 'danado', 'dañada', 'daña']):
+                reason_type = 'danado'
+            elif any(x in reason_text for x in ['onsite', 'on-site']):
+                reason_type = 'onsite'
+            elif any(x in reason_text for x in ['no apto', 'no_apto', 'mantenimiento', 'incidencia', 'daño', 'daño estructural']):
                 reason_type = 'no_apto'
             else:
                 reason_type = 'ciclico'
         
         # Choose destination sub-child location
-        dest_loc = ciclico_dest if reason_type == 'ciclico' else no_apto_dest
+        dest_loc = ciclico_dest
+        if reason_type == 'no_apto':
+            dest_loc = no_apto_dest
+        elif reason_type == 'danado' and danado_dest:
+            dest_loc = danado_dest
+        elif reason_type == 'onsite' and onsite_dest:
+            dest_loc = onsite_dest
         
         # Set values to write
         vals = {

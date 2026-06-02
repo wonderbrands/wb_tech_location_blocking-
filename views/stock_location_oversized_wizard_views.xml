@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <record id="view_stock_location_oversized_wizard_form" model="ir.ui.view">
+            <field name="name">stock.location.oversized.wizard.form</field>
+            <field name="model">wb.stock.location.oversized.wizard</field>
+            <field name="arch" type="xml">
+                <form string="Sobredimensionar Ubicación">
+                    <group>
+                        <field name="original_location_id" readonly="1"/>
+                    </group>
+                    <notebook>
+                        <page string="Ubicaciones a Bloquear" name="locations_to_block">
+                            <field name="location_ids">
+                                <list editable="bottom" create="true" delete="true">
+                                    <field name="complete_name"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                    <footer>
+                        <button name="action_block_oversized" string="Confirmar" type="object" class="oe_highlight"/>
+                        <button string="Cancelar" class="btn-secondary" special="cancel"/>
+                    </footer>
+                </form>
+            </field>
+        </record>
+
+        <record id="action_stock_location_oversized_wizard" model="ir.actions.act_window">
+            <field name="name">Sobredimensionar Ubicación</field>
+            <field name="res_model">wb.stock.location.oversized.wizard</field>
+            <field name="view_mode">form</field>
+            <field name="target">new</field>
+        </record>
+    </data>
+</odoo>

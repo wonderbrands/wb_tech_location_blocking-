@@ -13,6 +13,7 @@
                     </div>
                     <header>
                         <button name="action_open_block_wizard" string="Bloquear Ubicación" type="object" class="oe_highlight" invisible="original_parent_id != False"/>
+                        <button name="action_open_oversized_wizard" string="Sobredimensionar" type="object" class="oe_highlight" invisible="original_parent_id != False"/>
                         <button name="action_unblock" string="Desbloquear Ubicación" type="object" class="btn-secondary" invisible="original_parent_id == False"/>
                     </header>
                 </xpath>
@@ -25,6 +26,7 @@
                     <field name="block_user_id" readonly="1" invisible="not block_user_id"/>
                     <field name="original_parent_id" readonly="1" invisible="not original_parent_id"/>
                     <field name="reporting_parent_id" readonly="1" invisible="not original_parent_id"/>
+                    <field name="oversized_from_location_id" readonly="1" invisible="not oversized_from_location_id"/>
                 </xpath>
                 <xpath expr="//sheet" position="inside">
                     <notebook>
@@ -40,6 +42,16 @@
                                 </list>
                             </field>
                         </page>
+                        <page string="Ubicaciones Sobredimensionadas" name="oversized_locations" invisible="not oversized_location_ids">
+                            <field name="oversized_location_ids" readonly="1">
+                                <list string="Ubicaciones Sobredimensionadas">
+                                    <field name="complete_name"/>
+                                    <field name="block_reason"/>
+                                    <field name="block_date"/>
+                                    <field name="block_user_id"/>
+                                </list>
+                            </field>
+                        </page>
                     </notebook>
                 </xpath>
             </field>
@@ -51,9 +63,13 @@
             <field name="model">stock.location</field>
             <field name="arch" type="xml">
                 <list string="Ubicaciones Bloqueadas" create="false" edit="false" delete="false" decoration-danger="is_block_expired">
-                    <field name="is_block_expired" column_invisible="1"/>
+                    <field name="is_block_expired" string="Expirado" widget="boolean" optional="show"/>
                     <field name="complete_name"/>
-                    <field name="block_reason_type" decoration-info="block_reason_type == 'ciclico'" decoration-danger="block_reason_type == 'no_apto'"/>
+                    <field name="loc_pasillo" optional="hide"/>
+                    <field name="loc_posicion" optional="hide"/>
+                    <field name="loc_frente" optional="hide"/>
+                    <field name="loc_nivel" optional="hide"/>
+                    <field name="block_reason_type" decoration-info="block_reason_type in ('ciclico', 'onsite')" decoration-danger="block_reason_type in ('no_apto', 'danado')"/>
                     <field name="original_parent_id"/>
                     <field name="reporting_parent_id"/>
                     <field name="block_date"/>
@@ -87,8 +103,14 @@
                     <field name="complete_name"/>
                     <field name="original_parent_id"/>
                     <field name="reporting_parent_id"/>
+                    <field name="loc_pasillo" string="Pasillo"/>
+                    <field name="loc_posicion" string="Posición"/>
+                    <field name="loc_frente" string="Frente"/>
+                    <field name="loc_nivel" string="Nivel"/>
                     <filter string="Cíclico" name="filter_ciclico" domain="[('block_reason_type', '=', 'ciclico')]"/>
                     <filter string="No Apta" name="filter_no_apto" domain="[('block_reason_type', '=', 'no_apto')]"/>
+                    <filter string="Dañada" name="filter_danado" domain="[('block_reason_type', '=', 'danado')]"/>
+                    <filter string="Onsite" name="filter_onsite" domain="[('block_reason_type', '=', 'onsite')]"/>
                     <separator/>
                     <filter string="Bloqueos Vencidos" name="filter_expired_blocks" domain="[('block_expiration_date', '&lt;', context_today().strftime('%Y-%m-%d'))]"/>
                     <filter string="Bloqueos > 7 días" name="filter_old_blocks" domain="[('block_date', '&lt;', (context_today() - datetime.timedelta(days=7)).strftime('%Y-%m-%d'))]"/>
@@ -96,6 +118,10 @@
                         <filter string="Motivo de Bloqueo" name="group_by_reason" context="{'group_by': 'block_reason_type'}"/>
                         <filter string="Ubicación Padre Original (Reportes)" name="group_by_parent" context="{'group_by': 'reporting_parent_id'}"/>
                         <filter string="Usuario" name="group_by_user" context="{'group_by': 'block_user_id'}"/>
+                        <filter string="Pasillo" name="group_by_loc_pasillo" context="{'group_by': 'loc_pasillo'}"/>
+                        <filter string="Posición" name="group_by_loc_posicion" context="{'group_by': 'loc_posicion'}"/>
+                        <filter string="Frente" name="group_by_loc_frente" context="{'group_by': 'loc_frente'}"/>
+                        <filter string="Nivel" name="group_by_loc_nivel" context="{'group_by': 'loc_nivel'}"/>
                     </group>
                 </search>
             </field>

@@ -9,9 +9,10 @@ class StockLocationBlockWizard(models.TransientModel):
     location_ids = fields.Many2many('stock.location', string='Ubicaciones', required=True)
     
     block_reason_type = fields.Selection([
-        ('ciclico', 'Cíclico'),
-        ('no_apto', 'No Apta')
-    ], string='Motivo', required=True, default='ciclico')
+        ('no_apto', 'No Apta'),
+        ('danado', 'Dañada'),
+        ('onsite', 'Onsite')
+    ], string='Motivo', required=True, default='no_apto')
     
     comment = fields.Text(string='Comentario')
     ticket = fields.Char(string='Ticket de Mantenimiento')
@@ -33,13 +34,20 @@ class StockLocationBlockWizard(models.TransientModel):
 
         # 1. Check permissions by reason type
         if self.block_reason_type == 'ciclico':
-            if not self.env.user.has_group('stock.group_stock_user'):
-                raise UserError("Solo un Operador de inventario puede bloquear por motivo Cíclico.")
+            raise UserError("No se puede bloquear por motivo Cíclico usando este asistente. Debe realizarse a través de WMDS.")
         elif self.block_reason_type == 'no_apto':
             if not self.env.user.has_group('wb_tech_location_blocking.group_lider_de_turno'):
                 raise UserError("Solo el Líder de turno puede bloquear una ubicación como No Apta.")
             if not self.ticket:
                 raise UserError("El ticket de mantenimiento es obligatorio para el motivo No Apta.")
+        elif self.block_reason_type == 'danado':
+            if not self.env.user.has_group('wb_tech_location_blocking.group_lider_de_turno'):
+                raise UserError("Solo el Líder de turno puede bloquear una ubicación como Dañada.")
+            if not self.ticket:
+                raise UserError("El ticket de mantenimiento es obligatorio para el motivo Dañada.")
+        elif self.block_reason_type == 'onsite':
+            if not self.env.user.has_group('wb_tech_location_blocking.group_lider_de_turno'):
+                raise UserError("Solo el Líder de turno puede bloquear una ubicación por motivo Onsite.")
 
         # 2. Process each location
         for location in self.location_ids:
@@ -58,7 +66,7 @@ class StockLocationBlockWizard(models.TransientModel):
                     ref = pending_moves.picking_id.name or pending_moves.move_id.reference or 'un movimiento'
                     raise UserError(f"No se puede bloquear la ubicación {location.complete_name} por motivo Cíclico: tiene movimientos o reservas pendientes en {ref}.")
 
-            elif self.block_reason_type == 'no_apto':
+            elif self.block_reason_type in ('no_apto', 'danado', 'onsite'):
                 # Validation: Sin producto (si tiene, rechazar y pedir mover primero)
                 quants = self.env['stock.quant'].sudo().search([
                     ('location_id', '=', location.id),
@@ -66,7 +74,8 @@ class StockLocationBlockWizard(models.TransientModel):
                 ], limit=1)
                 
                 if quants:
-                    raise UserError(f"La ubicación {location.complete_name} contiene producto. Debe mover el producto antes de bloquear la ubicación por el motivo seleccionado.")
+                    reason_label = dict(self._fields['block_reason_type'].selection).get(self.block_reason_type)
+                    raise UserError(f"La ubicación {location.complete_name} contiene producto. Debe mover el producto antes de bloquear la ubicación por el motivo {reason_label}.")
 
             # Get blocked parent sub-child location
             xml_id = f'wb_tech_location_blocking.location_blocked_{self.block_reason_type}'
@@ -75,7 +84,9 @@ class StockLocationBlockWizard(models.TransientModel):
                 # Fallback search by name
                 sub_name = {
                     'ciclico': 'Ciclico',
-                    'no_apto': 'NoApta'
+                    'no_apto': 'NoApta',
+                    'danado': 'Dañada',
+                    'onsite': 'Onsite'
                 }.get(self.block_reason_type, 'Ciclico')
                 
                 blocked_parent = self.env['stock.location'].sudo().search([
@@ -97,14 +108,14 @@ class StockLocationBlockWizard(models.TransientModel):
                 'block_reason': block_reason_value,
                 'block_date': fields.Datetime.now(),
                 'block_user_id': self.env.user.id,
-                'block_ticket': self.ticket if self.block_reason_type == 'no_apto' else False,
+                'block_ticket': self.ticket if self.block_reason_type in ('no_apto', 'danado') else False,
                 'block_expiration_date': self.expiration_date,
             }
 
             if not location.original_parent_id:
                 vals['original_parent_id'] = location.location_id.id
 
-            location.sudo().write(vals)
+            location.with_context(skip_history_write=True).sudo().write(vals)
 
             # Create history entry
             self.env['stock.location.block.history'].create({

@@ -24,5 +24,17 @@
             <field name="location_id" ref="wmds.location_blocked"/>
             <field name="usage">internal</field>
         </record>
+
+        <record id="location_blocked_danado" model="stock.location">
+            <field name="name">Dañada</field>
+            <field name="location_id" ref="wmds.location_blocked"/>
+            <field name="usage">internal</field>
+        </record>
+
+        <record id="location_blocked_onsite" model="stock.location">
+            <field name="name">Onsite</field>
+            <field name="location_id" ref="wmds.location_blocked"/>
+            <field name="usage">internal</field>
+        </record>
     </data>
 </odoo>
