@@ -63,6 +63,9 @@
             <field name="model">stock.location</field>
             <field name="arch" type="xml">
                 <list string="Ubicaciones Bloqueadas" create="false" edit="false" delete="false" decoration-danger="is_block_expired">
+                    <header>
+                        <button name="action_generate_blocked_report_csv" string="Reporte de posiciones bloqueadas" type="object" class="oe_highlight"/>
+                    </header>
                     <field name="is_block_expired" string="Expirado" widget="boolean" optional="show"/>
                     <field name="complete_name"/>
                     <field name="loc_pasillo" optional="hide"/>
@@ -79,6 +82,20 @@
                     <field name="block_ticket"/>
                     <field name="block_reason"/>
                 </list>
+            </field>
+        </record>
+
+        <!-- Inherit standard stock location tree view to add button -->
+        <record id="view_location_tree2_inherit_blocking" model="ir.ui.view">
+            <field name="name">stock.location.list.inherit.blocking</field>
+            <field name="model">stock.location</field>
+            <field name="inherit_id" ref="stock.view_location_tree2"/>
+            <field name="arch" type="xml">
+                <xpath expr="//list" position="inside">
+                    <header>
+                        <button name="action_generate_blocked_report_csv" string="Reporte de posiciones bloqueadas" type="object" class="oe_highlight"/>
+                    </header>
+                </xpath>
             </field>
         </record>
 

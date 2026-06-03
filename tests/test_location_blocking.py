@@ -53,11 +53,26 @@ class TestLocationBlocking(TransactionCase):
         })
 
         # Ensure blocked parent and sub-locations exist
-        cls.location_blocked = cls.env.ref('wb_tech_location_blocking.location_blocked')
+        cls.location_blocked = cls.env.ref('wmds.location_blocked')
         cls.location_blocked_ciclico = cls.env.ref('wb_tech_location_blocking.location_blocked_ciclico')
         cls.location_blocked_no_apto = cls.env.ref('wb_tech_location_blocking.location_blocked_no_apto')
         cls.location_blocked_sobredimensionada = cls.env.ref('wb_tech_location_blocking.location_blocked_sobredimensionada')
-        cls.location_blocked_cuarentena = cls.env.ref('wb_tech_location_blocking.location_blocked_cuarentena')
+        
+        # Look up or create WH/Cuarentena for tests
+        wh = cls.env['stock.location'].search([('name', '=', 'WH'), ('location_id', '=', False)], limit=1)
+        if not wh:
+            wh = cls.env['stock.location'].create({
+                'name': 'WH',
+                'usage': 'view'
+            })
+        cls.location_blocked_cuarentena = cls.env['stock.location'].search([('complete_name', '=', 'WH/Cuarentena')], limit=1)
+        if not cls.location_blocked_cuarentena:
+            cls.location_blocked_cuarentena = cls.env['stock.location'].create({
+                'name': 'Cuarentena',
+                'location_id': wh.id,
+                'usage': 'internal'
+            })
+
         cls.location_blocked_danado = cls.env.ref('wb_tech_location_blocking.location_blocked_danado')
         cls.location_blocked_onsite = cls.env.ref('wb_tech_location_blocking.location_blocked_onsite')
 
@@ -512,5 +527,203 @@ class TestLocationBlocking(TransactionCase):
         })
         unblock_wiz.action_confirm_unblock()
         self.assertEqual(self.pos1.location_id.id, self.pasillo_a.id)
+
+    def test_15_rackeo_picking_comex_blocking(self):
+        """Test that validating a 'Rackeo' picking blocks destination locations if COMEX lacks Vo.Bo."""
+        # Create a product for moving
+        product = self.env['product.product'].create({
+            'name': 'COMEX Block Test Product',
+            'type': 'consu',
+            'is_storable': True,
+        })
+
+        # Create picking type 'Rackeo'
+        warehouse = self.env['stock.warehouse'].search([], limit=1)
+        picking_type = self.env['stock.picking.type'].create({
+            'name': 'Rackeo',
+            'code': 'internal',
+            'sequence_code': 'RACK_TEST',
+            'warehouse_id': warehouse.id,
+        })
+
+        # Create a PO with check_commertial = False (Lacks Vo.Bo.)
+        partner = self.env['res.partner'].create({'name': 'COMEX Partner'})
+        po_no_vobo = self.env['purchase.order'].create({
+            'partner_id': partner.id,
+            'name': 'PO_NO_VOBO_123',
+            'check_commertial': False,
+        })
+
+        # Create a picking of type 'Rackeo' with origin = 'COMEX: PO_NO_VOBO_123'
+        picking = self.env['stock.picking'].create({
+            'picking_type_id': picking_type.id,
+            'origin': 'COMEX: PO_NO_VOBO_123',
+            'location_id': self.pasillo_a.id,
+            'location_dest_id': self.pos1.id,
+        })
+
+        # Create a stock move to pos1
+        move = self.env['stock.move'].create({
+            'name': 'Rackeo Move 1',
+            'product_id': product.id,
+            'product_uom_qty': 1.0,
+            'product_uom': product.uom_id.id,
+            'picking_id': picking.id,
+            'location_id': self.pasillo_a.id,
+            'location_dest_id': self.pos1.id,
+            'quantity': 1.0,
+        })
+
+        # Verify target location pos1 is not blocked and has its original parent
+        self.assertEqual(self.pos1.location_id.id, self.pasillo_a.id)
+        self.assertFalse(self.pos1.block_reason_type)
+
+        # Validate the picking
+        picking.action_confirm()
+        picking.button_validate()
+
+        # Target location should be blocked under Cuarentena now
+        self.assertEqual(self.pos1.location_id.id, self.location_blocked_cuarentena.id)
+        self.assertEqual(self.pos1.block_reason_type, 'cuarentena')
+        self.assertEqual(self.pos1.original_parent_id.id, self.pasillo_a.id)
+
+        # 1. Test auto-unblock when PO Vo.Bo. is granted (check_commertial = True)
+        po_no_vobo.write({'check_commertial': True})
+        self.assertEqual(self.pos1.location_id.id, self.pasillo_a.id)
+        self.assertFalse(self.pos1.block_reason_type)
+        self.assertFalse(self.pos1.original_parent_id)
+
+        # Clean up stock from first picking validation in pos1 so it is empty for the next validation
+        self.env['stock.quant'].search([('location_id', '=', self.pos1.id)]).unlink()
+
+        # 2. Test with Vo.Bo. (check_commertial = True) on a new PO and picking
+        po_with_vobo = self.env['purchase.order'].create({
+            'partner_id': partner.id,
+            'name': 'PO_WITH_VOBO_123',
+            'check_commertial': True,
+        })
+
+        picking_vobo = self.env['stock.picking'].create({
+            'picking_type_id': picking_type.id,
+            'origin': 'COMEX: PO_WITH_VOBO_123',
+            'location_id': self.pasillo_a.id,
+            'location_dest_id': self.pos1.id,
+        })
+
+        move_vobo = self.env['stock.move'].create({
+            'name': 'Rackeo Move 2',
+            'product_id': product.id,
+            'product_uom_qty': 1.0,
+            'product_uom': product.uom_id.id,
+            'picking_id': picking_vobo.id,
+            'location_id': self.pasillo_a.id,
+            'location_dest_id': self.pos1.id,
+            'quantity': 1.0,
+        })
+
+        picking_vobo.action_confirm()
+        picking_vobo.button_validate()
+
+        # The location should NOT be blocked
+        self.assertEqual(self.pos1.location_id.id, self.pasillo_a.id)
+        self.assertFalse(self.pos1.block_reason_type)
+
+        # 3. Test that validating a Rackeo picking to a non-empty location raises UserError
+        # First, add stock to pos1
+        quant = self.env['stock.quant'].create({
+            'product_id': product.id,
+            'location_id': self.pos1.id,
+            'quantity': 5.0,
+            'company_id': self.env.company.id,
+        })
+
+        picking_error = self.env['stock.picking'].create({
+            'picking_type_id': picking_type.id,
+            'origin': 'COMEX: PO_WITH_VOBO_123',
+            'location_id': self.pasillo_a.id,
+            'location_dest_id': self.pos1.id,
+        })
+
+        move_error = self.env['stock.move'].create({
+            'name': 'Rackeo Move Error',
+            'product_id': product.id,
+            'product_uom_qty': 1.0,
+            'product_uom': product.uom_id.id,
+            'picking_id': picking_error.id,
+            'location_id': self.pasillo_a.id,
+            'location_dest_id': self.pos1.id,
+            'quantity': 1.0,
+        })
+
+        picking_error.action_confirm()
+        with self.assertRaises(UserError):
+            picking_error.button_validate()
+
+        # Clean up stock
+        quant.unlink()
+
+    def test_16_csv_report_action(self):
+        """Test the action_generate_blocked_report_csv returns the correct act_url action."""
+        # Block pos1 first
+        self.pos1.sudo().write({
+            'location_id': self.location_blocked_ciclico.id,
+            'block_reason_type': 'ciclico',
+            'block_reason': 'Conteo Cíclico: TEST-CSV',
+            'original_parent_id': self.pasillo_a.id,
+            'block_date': fields.Datetime.now(),
+            'block_user_id': self.operator_user.id
+        })
+        
+        # Test with empty self
+        action_all = self.env['stock.location'].action_generate_blocked_report_csv()
+        self.assertEqual(action_all['type'], 'ir.actions.act_url')
+        self.assertEqual(action_all['url'], '/web/blocked_locations_csv')
+        self.assertEqual(action_all['target'], 'new')
+        
+        # Test with self containing records
+        action_specific = self.pos1.action_generate_blocked_report_csv()
+        self.assertEqual(action_specific['type'], 'ir.actions.act_url')
+        self.assertIn('/web/blocked_locations_csv?wizard_id=', action_specific['url'])
+        self.assertEqual(action_specific['target'], 'new')
+
+    def test_17_cyclic_counting_blocked_locations_validation(self):
+        """Test that blocked locations cannot be selected/counted in scheduled cycle counts."""
+        # 1. Block pos1 under ciclico
+        self.pos1.sudo().write({
+            'location_id': self.location_blocked_ciclico.id,
+            'block_reason_type': 'ciclico',
+            'block_reason': 'Conteo Cíclico: TEST-BLOCK',
+            'original_parent_id': self.pasillo_a.id,
+            'block_date': fields.Datetime.now(),
+            'block_user_id': self.operator_user.id
+        })
+
+        self.assertTrue(self.pos1.is_location_blocked())
+
+        # 2. Try to create scheduled.cycle.count with pos1 -> should raise UserError
+        cycle_count = self.env['scheduled.cycle.count'].create({
+            'notes': 'Test Cycle Count Blocked Location',
+        })
+
+        # Try to add pos1 to scheduled.cycle.count selected locations
+        with self.assertRaises(UserError):
+            self.env['cycle.count.selected.location'].create({
+                'cycle_count_id': cycle_count.id,
+                'location_id': self.pos1.id,
+            })
+
+        # 3. Try to add pos1 to cycle.count.line of a wave -> should raise UserError
+        wave = self.env['cycle.count.wave'].create({
+            'cycle_count_id': cycle_count.id,
+            'operator_id': self.operator_user.id,
+        })
+
+        with self.assertRaises(UserError):
+            self.env['cycle.count.line'].create({
+                'wave_id': wave.id,
+                'stock_location_id': self.pos1.id,
+                'qty': 5,
+            })
+
 
 

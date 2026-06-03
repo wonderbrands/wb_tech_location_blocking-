@@ -8,21 +8,33 @@ _logger = logging.getLogger(__name__)
 class StockPicking(models.Model):
     _inherit = 'stock.picking'
 
+    location_id = fields.Many2one(
+        'stock.location',
+        domain="[('usage', '!=', 'view'), ('complete_name', 'not ilike', 'Bloqueado')]"
+    )
+    location_dest_id = fields.Many2one(
+        'stock.location',
+        domain="[('usage', '!=', 'view'), ('complete_name', 'not ilike', 'Bloqueado')]"
+    )
+
     def button_validate(self):
         # Run super first to validate the picking
         res = super(StockPicking, self).button_validate()
 
         for picking in self:
-            if picking.picking_type_id.name == 'Rackeo':
+            if picking.picking_type_id.name in ('Rackeo', 'Rackeos'):
                 clean_origin = picking.origin.replace('COMEX: ', '') if picking.origin else ''
                 po = self.env['purchase.order'].search(
                     [('name', '=', clean_origin)],
                     limit=1
                 )
                 if po and not po.check_commertial:
-                    # Find the destination locations of the moves
-                    dest_locations = picking.move_ids.mapped('location_dest_id')
-                    cuarentena_parent = self.env.ref('wb_tech_location_blocking.location_blocked_cuarentena', raise_if_not_found=False)
+                    # Find the destination locations of the moves with quantity > 0
+                    active_moves = picking.move_ids.filtered(
+                        lambda m: getattr(m, 'quantity', getattr(m, 'quantity_done', 0.0)) > 0
+                    )
+                    dest_locations = active_moves.mapped('location_dest_id')
+                    cuarentena_parent = self.env['stock.location'].sudo().search([('complete_name', '=', 'WH/Cuarentena')], limit=1)
                     if not cuarentena_parent:
                         cuarentena_parent = self.env['stock.location'].sudo().search([
                             ('name', '=', 'Cuarentena'),

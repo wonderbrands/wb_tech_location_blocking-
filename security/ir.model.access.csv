@@ -3,3 +3,4 @@ access_wb_stock_location_block_wizard,wb.stock.location.block.wizard,model_wb_st
 access_wb_stock_location_unblock_wizard,wb.stock.location.unblock.wizard,model_wb_stock_location_unblock_wizard,stock.group_stock_user,1,1,1,1
 access_stock_location_block_history,stock.location.block.history,model_stock_location_block_history,stock.group_stock_user,1,1,1,1
 access_wb_stock_location_oversized_wizard,wb.stock.location.oversized.wizard,model_wb_stock_location_oversized_wizard,stock.group_stock_user,1,1,1,1
+access_wb_stock_location_blocked_report_wizard,wb.stock.location.blocked.report.wizard,model_wb_stock_location_blocked_report_wizard,stock.group_stock_user,1,1,1,1

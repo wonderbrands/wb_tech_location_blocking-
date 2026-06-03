@@ -120,6 +120,20 @@ class StockLocation(models.Model):
             else:
                 rec.reporting_parent_id = rec.location_id
 
+    def action_generate_blocked_report_csv(self):
+        url = '/web/blocked_locations_csv'
+        if self:
+            wizard = self.env['wb.stock.location.blocked.report.wizard'].create({
+                'location_ids': [(6, 0, self.ids)]
+            })
+            url += f'?wizard_id={wizard.id}'
+        return {
+            'type': 'ir.actions.act_url',
+            'url': url,
+            'target': 'new',
+        }
+
+
     def action_open_block_wizard(self):
         self.ensure_one()
         return {
@@ -190,14 +204,6 @@ class StockLocation(models.Model):
 
     def _do_unblock(self, comment=None):
         self.ensure_one()
-        is_quarantine = (
-            self.block_reason_type == 'cuarentena' or
-            (self.block_reason and 'cuarentena' in self.block_reason.lower()) or
-            (self.location_id and 'cuarentena' in (self.location_id.complete_name or '').lower())
-        )
-        if is_quarantine:
-            raise UserError("No se permite desbloquear una ubicación en cuarentena.")
-            
         # Save to history before unblocking
         self.env['stock.location.block.history'].create({
             'location_id': self.id,
@@ -248,7 +254,12 @@ class StockLocation(models.Model):
         ciclico_dest = self.env.ref('wb_tech_location_blocking.location_blocked_ciclico', raise_if_not_found=False)
         no_apto_dest = self.env.ref('wb_tech_location_blocking.location_blocked_no_apto', raise_if_not_found=False)
         sobredim_dest = self.env.ref('wb_tech_location_blocking.location_blocked_sobredimensionada', raise_if_not_found=False)
-        cuarentena_dest = self.env.ref('wb_tech_location_blocking.location_blocked_cuarentena', raise_if_not_found=False)
+        cuarentena_dest = self.env['stock.location'].search([('complete_name', '=', 'WH/Cuarentena')], limit=1)
+        if not cuarentena_dest:
+            cuarentena_dest = self.env['stock.location'].search([
+                ('name', '=', 'Cuarentena'),
+                ('location_id.name', '=', 'WH')
+            ], limit=1)
         danado_dest = self.env.ref('wb_tech_location_blocking.location_blocked_danado', raise_if_not_found=False)
         onsite_dest = self.env.ref('wb_tech_location_blocking.location_blocked_onsite', raise_if_not_found=False)
         
@@ -341,7 +352,12 @@ class StockLocation(models.Model):
         ciclico_dest = self.env.ref('wb_tech_location_blocking.location_blocked_ciclico', raise_if_not_found=False)
         no_apto_dest = self.env.ref('wb_tech_location_blocking.location_blocked_no_apto', raise_if_not_found=False)
         sobredim_dest = self.env.ref('wb_tech_location_blocking.location_blocked_sobredimensionada', raise_if_not_found=False)
-        cuarentena_dest = self.env.ref('wb_tech_location_blocking.location_blocked_cuarentena', raise_if_not_found=False)
+        cuarentena_dest = self.env['stock.location'].search([('complete_name', '=', 'WH/Cuarentena')], limit=1)
+        if not cuarentena_dest:
+            cuarentena_dest = self.env['stock.location'].search([
+                ('name', '=', 'Cuarentena'),
+                ('location_id.name', '=', 'WH')
+            ], limit=1)
         danado_dest = self.env.ref('wb_tech_location_blocking.location_blocked_danado', raise_if_not_found=False)
         onsite_dest = self.env.ref('wb_tech_location_blocking.location_blocked_onsite', raise_if_not_found=False)
         
@@ -381,6 +397,8 @@ class StockLocation(models.Model):
                     reason_type = 'onsite'
                 elif any(x in reason_text for x in ['no apto', 'no_apto', 'mantenimiento', 'incidencia', 'daño', 'daño estructural']):
                     reason_type = 'no_apto'
+                elif any(x in reason_text for x in ['cuarentena']):
+                    reason_type = 'cuarentena'
                 else:
                     reason_type = 'ciclico'
             
@@ -401,6 +419,10 @@ class StockLocation(models.Model):
                 if onsite_dest:
                     vals['location_id'] = onsite_dest.id
                     vals['block_reason_type'] = 'onsite'
+            elif reason_type == 'cuarentena':
+                if cuarentena_dest:
+                    vals['location_id'] = cuarentena_dest.id
+                    vals['block_reason_type'] = 'cuarentena'
 
         # Determine reason_type if blocking
         reason_type = False
@@ -494,11 +516,41 @@ class StockLocation(models.Model):
                 wmds_blocked.write({'location_id': wh.id})
                 _logger.info("Set parent of wmds.location_blocked to WH")
 
-            # Set parent of Cuarentena to WH
-            cuarentena = self.env.ref('wb_tech_location_blocking.location_blocked_cuarentena', raise_if_not_found=False)
-            if cuarentena and cuarentena.location_id != wh:
-                cuarentena.write({'location_id': wh.id})
-                _logger.info("Set parent of location_blocked_cuarentena to WH")
+            # Clean up old WH/Bloqueado/Cuarentena and migrate existing data to WH/Cuarentena
+            old_cuarentena = self.env['stock.location'].search([('complete_name', '=', 'WH/Bloqueado/Cuarentena')], limit=1)
+            new_cuarentena = self.env['stock.location'].search([('complete_name', '=', 'WH/Cuarentena')], limit=1)
+            if not new_cuarentena:
+                new_cuarentena = self.env['stock.location'].search([('name', '=', 'Cuarentena'), ('location_id', '=', wh.id)], limit=1)
+
+            if not new_cuarentena:
+                new_cuarentena = self.env['stock.location'].create({
+                    'name': 'Cuarentena',
+                    'location_id': wh.id,
+                    'usage': 'internal'
+                })
+                _logger.info("Created standard WH/Cuarentena location")
+
+            if old_cuarentena and new_cuarentena:
+                # Move child locations
+                locations_to_move = self.env['stock.location'].search([('location_id', '=', old_cuarentena.id)])
+                for loc in locations_to_move:
+                    loc.sudo().write({'location_id': new_cuarentena.id})
+                    _logger.info("Migrated blocked location %s parent to %s", loc.name, new_cuarentena.complete_name)
+                
+                # Move quants
+                self.env['stock.quant'].search([('location_id', '=', old_cuarentena.id)]).sudo().write({'location_id': new_cuarentena.id})
+
+                # Delete ir.model.data if exists
+                xml_id_rec = self.env['ir.model.data'].search([
+                    ('module', '=', 'wb_tech_location_blocking'),
+                    ('name', '=', 'location_blocked_cuarentena')
+                ])
+                if xml_id_rec:
+                    xml_id_rec.unlink()
+
+                # Delete old location
+                old_cuarentena.sudo().unlink()
+                _logger.info("Successfully deleted old WH/Bloqueado/Cuarentena location and migrated references.")
 
     def action_mass_unblock(self):
         blocked_records = self.filtered(lambda r: r.original_parent_id)
@@ -529,3 +581,24 @@ class StockLocation(models.Model):
             rec._do_unblock(comment="Desbloqueo masivo.")
 
         return True
+
+    def is_location_blocked(self):
+        """Returns True if the location is blocked (has a block reason or is nested under a blocked parent location)."""
+        self.ensure_one()
+        is_blocked = (
+            self.original_parent_id or
+            self.block_reason_type or
+            (self.location_id and 'bloqueado' in (self.location_id.complete_name or '').lower()) or
+            (self.location_id and 'cuarentena' in (self.location_id.complete_name or '').lower()) or
+            'bloqueado' in (self.complete_name or '').lower() or
+            'cuarentena' in (self.complete_name or '').lower()
+        )
+        return bool(is_blocked)
+
+
+class StockLocationBlockedReportWizard(models.TransientModel):
+    _name = 'wb.stock.location.blocked.report.wizard'
+    _description = 'Wizard de Reporte de Posiciones Bloqueadas'
+
+    location_ids = fields.Many2many('stock.location', string='Ubicaciones')
+

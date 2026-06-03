@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from . import models
+from . import controllers
 import logging
 
 _logger = logging.getLogger(__name__)
