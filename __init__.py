@@ -24,14 +24,25 @@ def post_init_hook(env):
     no_apto_dest = env.ref('wb_tech_location_blocking.location_blocked_no_apto', raise_if_not_found=False)
     danado_dest = env.ref('wb_tech_location_blocking.location_blocked_danado', raise_if_not_found=False)
     onsite_dest = env.ref('wb_tech_location_blocking.location_blocked_onsite', raise_if_not_found=False)
+    sobredim_dest = env.ref('wb_tech_location_blocking.location_blocked_sobredimensionada', raise_if_not_found=False)
     
     if not ciclico_dest or not no_apto_dest:
         _logger.warning("Sub-child blocked locations not found. Skipping migration.")
         return
 
+    # Exclude these new sub-child locations from migration to prevent self-referencing loops
+    sub_child_ids = {
+        ciclico_dest.id if ciclico_dest else False,
+        no_apto_dest.id if no_apto_dest else False,
+        danado_dest.id if danado_dest else False,
+        onsite_dest.id if onsite_dest else False,
+        sobredim_dest.id if sobredim_dest else False,
+    } - {False}
+
     # 3. Find all locations currently directly under the old 'Bloqueado/' parent
     blocked_locations = env['stock.location'].search([
-        ('location_id', '=', wmds_blocked.id)
+        ('location_id', '=', wmds_blocked.id),
+        ('id', 'not in', list(sub_child_ids))
     ])
     
     _logger.info("Found %d locations under the old Bloqueado parent to migrate.", len(blocked_locations))
