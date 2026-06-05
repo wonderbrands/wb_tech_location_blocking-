@@ -480,6 +480,7 @@ class StockLocation(models.Model):
                     })
                 is_unblocking = 'original_parent_id' in vals and not vals.get('original_parent_id') and rec.original_parent_id
                 if is_unblocking:
+                    comment = self.env.context.get('unblock_comment') or 'Desbloqueo automático/API.'
                     history_to_create.append({
                         'location_id': rec.id,
                         'event_type': 'unblock',
@@ -488,7 +489,7 @@ class StockLocation(models.Model):
                         'date': fields.Datetime.now(),
                         'user_id': self.env.user.id,
                         'ticket': rec.block_ticket,
-                        'comment': 'Desbloqueo automático/API.'
+                        'comment': comment
                     })
 
         res = super(StockLocation, self).write(vals)

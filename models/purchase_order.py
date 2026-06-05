@@ -23,7 +23,7 @@ class PurchaseOrder(models.Model):
                     for loc in blocked_locations:
                         # Write directly to update parent location and original_parent_id
                         # which triggers history creation and resets block fields automatically
-                        loc.sudo().write({
+                        loc.sudo().with_context(unblock_comment=f"Desbloqueo automático por Vo.Bo. COMEX en PO {po.name}.").write({
                             'location_id': loc.original_parent_id.id,
                             'original_parent_id': False,
                         })
