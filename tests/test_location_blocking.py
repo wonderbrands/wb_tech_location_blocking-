@@ -725,5 +725,26 @@ class TestLocationBlocking(TransactionCase):
                 'qty': 5,
             })
 
+        # 4. Block pos1 under the current cycle_count's name -> should succeed
+        self.pos1.sudo().write({
+            'block_reason': f"Conteo Cíclico: {cycle_count.name}",
+        })
+
+        # It should now be allowed to add pos1 to the cycle count's selected locations
+        selected_loc = self.env['cycle.count.selected.location'].create({
+            'cycle_count_id': cycle_count.id,
+            'location_id': self.pos1.id,
+        })
+        self.assertTrue(selected_loc)
+
+        # It should also be allowed to add pos1 to the wave lines
+        line = self.env['cycle.count.line'].create({
+            'wave_id': wave.id,
+            'stock_location_id': self.pos1.id,
+            'qty': 10,
+        })
+        self.assertTrue(line)
+
+
 
 
