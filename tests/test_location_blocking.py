@@ -745,6 +745,103 @@ class TestLocationBlocking(TransactionCase):
         })
         self.assertTrue(line)
 
+    def test_18_sobredimensionada_auto_unblock_when_empty(self):
+        """Test that blocked locations are automatically unblocked when the origin location runs out of stock."""
+        # 1. Place some product stock in pos1 (the location we will oversize from)
+        product = self.env['product.product'].create({
+            'name': 'Oversized Test Product',
+            'type': 'consu',
+            'is_storable': True,
+        })
+        quant = self.env['stock.quant'].create({
+            'product_id': product.id,
+            'location_id': self.pos1.id,
+            'quantity': 10.0,
+            'company_id': self.env.company.id,
+        })
 
+        # 2. Block pos2 pointing to pos1 (oversized_from_location_id = pos1)
+        wizard = self.env['wb.stock.location.oversized.wizard'].with_user(self.operator_user).create({
+            'original_location_id': self.pos1.id,
+            'location_ids': [(6, 0, [self.pos2.id])],
+        })
+        wizard.action_block_oversized()
 
+        # Check that pos2 is blocked and points to pos1
+        self.assertEqual(self.pos2.location_id.id, self.location_blocked_sobredimensionada.id)
+        self.assertEqual(self.pos2.block_reason_type, 'sobredimensionada')
+        self.assertEqual(self.pos2.oversized_from_location_id.id, self.pos1.id)
 
+        # 3. Reduce stock in pos1 to 0 -> should automatically unblock pos2
+        quant.write({'quantity': 0.0})
+
+        self.assertEqual(self.pos2.location_id.id, self.pasillo_a.id)
+        self.assertFalse(self.pos2.block_reason_type)
+        self.assertFalse(self.pos2.oversized_from_location_id)
+
+        # Verify history comments
+        history = self.env['stock.location.block.history'].search([
+            ('location_id', '=', self.pos2.id),
+            ('event_type', '=', 'unblock')
+        ], order='id desc', limit=1)
+        self.assertTrue(history)
+        self.assertEqual(history.comment, "Desbloqueado porque se acabó el producto sobredimensionado.")
+
+        # 4. Now test the unlink trigger
+        # Put stock in pos1 again
+        quant2 = self.env['stock.quant'].create({
+            'product_id': product.id,
+            'location_id': self.pos1.id,
+            'quantity': 5.0,
+            'company_id': self.env.company.id,
+        })
+
+        # Block pos2 pointing to pos1 again
+        wizard2 = self.env['wb.stock.location.oversized.wizard'].with_user(self.operator_user).create({
+            'original_location_id': self.pos1.id,
+            'location_ids': [(6, 0, [self.pos2.id])],
+        })
+        wizard2.action_block_oversized()
+
+        self.assertEqual(self.pos2.location_id.id, self.location_blocked_sobredimensionada.id)
+
+        # Unlink the quant (simulate it being deleted/removed from location) -> should trigger auto-unblock
+        quant2.unlink()
+
+        self.assertEqual(self.pos2.location_id.id, self.pasillo_a.id)
+        self.assertFalse(self.pos2.block_reason_type)
+        self.assertFalse(self.pos2.oversized_from_location_id)
+
+        # Verify history comments again
+        history2 = self.env['stock.location.block.history'].search([
+            ('location_id', '=', self.pos2.id),
+            ('event_type', '=', 'unblock')
+        ], order='id desc', limit=1)
+        self.assertTrue(history2)
+        self.assertEqual(history2.comment, "Desbloqueado porque se acabó el producto sobredimensionado.")
+
+    def test_19_sobredimensionada_unblocks_immediately_if_blocked_when_empty(self):
+        """Test that if we try to block a location pointing to an empty origin, it unblocks immediately."""
+        # Ensure pos1 is empty (has no stock)
+        quants = self.env['stock.quant'].search([('location_id', '=', self.pos1.id)])
+        quants.unlink()
+
+        # Try to block pos2 pointing to the empty pos1
+        wizard = self.env['wb.stock.location.oversized.wizard'].with_user(self.operator_user).create({
+            'original_location_id': self.pos1.id,
+            'location_ids': [(6, 0, [self.pos2.id])],
+        })
+        wizard.action_block_oversized()
+
+        # Check that pos2 remains unblocked (it was blocked, but immediately unblocked because pos1 is empty)
+        self.assertEqual(self.pos2.location_id.id, self.pasillo_a.id)
+        self.assertFalse(self.pos2.block_reason_type)
+        self.assertFalse(self.pos2.oversized_from_location_id)
+
+        # Verify history comments
+        history = self.env['stock.location.block.history'].search([
+            ('location_id', '=', self.pos2.id),
+            ('event_type', '=', 'unblock')
+        ], order='id desc', limit=1)
+        self.assertTrue(history)
+        self.assertEqual(history.comment, "Desbloqueado porque se acabó el producto sobredimensionado.")

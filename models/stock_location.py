@@ -88,6 +88,21 @@ class StockLocation(models.Model):
             return [('id', 'not in', location_with_stock_ids)]
         else:
             return [('id', 'in', location_with_stock_ids)]
+
+    def _check_and_unblock_oversized(self):
+        self.env['stock.quant'].flush_model(['location_id', 'quantity'])
+        for loc in self:
+            blocked_locations = self.env['stock.location'].search([
+                ('oversized_from_location_id', '=', loc.id)
+            ])
+            if blocked_locations:
+                quants = self.env['stock.quant'].sudo().search([
+                    ('location_id', '=', loc.id),
+                    ('quantity', '>', 0)
+                ], limit=1)
+                if not quants:
+                    for blocked_loc in blocked_locations:
+                        blocked_loc._do_unblock(comment="Desbloqueado porque se acabó el producto sobredimensionado.")
     
     block_history_ids = fields.One2many(
         'stock.location.block.history', 
@@ -345,6 +360,10 @@ class StockLocation(models.Model):
             if history_to_create:
                 self.env['stock.location.block.history'].create(history_to_create)
 
+        for rec in res:
+            if rec.oversized_from_location_id:
+                rec.oversized_from_location_id._check_and_unblock_oversized()
+
         return res
 
     def write(self, vals):
@@ -498,6 +517,10 @@ class StockLocation(models.Model):
         if history_to_create:
             self.env['stock.location.block.history'].create(history_to_create)
 
+        if 'oversized_from_location_id' in vals and vals.get('oversized_from_location_id'):
+            origin_loc = self.env['stock.location'].browse(vals.get('oversized_from_location_id'))
+            origin_loc._check_and_unblock_oversized()
+
         return res
 
     def init(self):
@@ -552,6 +575,22 @@ class StockLocation(models.Model):
                 # Delete old location
                 old_cuarentena.sudo().unlink()
                 _logger.info("Successfully deleted old WH/Bloqueado/Cuarentena location and migrated references.")
+
+        # Clean up existing oversized blocked locations if their source is empty
+        try:
+            oversized_blocked = self.env['stock.location'].search([
+                ('block_reason_type', '=', 'sobredimensionada'),
+                ('oversized_from_location_id', '!=', False)
+            ])
+            for loc in oversized_blocked:
+                quants = self.env['stock.quant'].sudo().search([
+                    ('location_id', '=', loc.oversized_from_location_id.id),
+                    ('quantity', '>', 0)
+                ], limit=1)
+                if not quants:
+                    loc._do_unblock(comment="Desbloqueado porque se acabó el producto sobredimensionado.")
+        except Exception as e:
+            _logger.warning("Error running oversized location cleanup in init: %s", str(e))
 
     def action_mass_unblock(self):
         blocked_records = self.filtered(lambda r: r.original_parent_id)
