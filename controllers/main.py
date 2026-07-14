@@ -178,6 +178,7 @@ class BlockedLocationsReportController(http.Controller):
                 'block_expiration_date': loc.block_expiration_date.strftime('%Y-%m-%d') if loc.block_expiration_date else '',
                 'is_block_expired': loc.is_block_expired,
                 'oversized_from': loc.oversized_from_location_id.name or '',
+                'oversized_to': ', '.join(loc.oversized_location_ids.mapped('name')) or '',
                 'is_empty_location': loc.is_empty_location,
             })
         return res
@@ -272,6 +273,17 @@ class BlockedLocationsReportController(http.Controller):
             return {'status': 'error', 'message': 'No existe la ubicación.'}
             
         try:
+            # Cancel oversized blocking if this location is currently oversizing others
+            blocked_adjacents = request.env['stock.location'].sudo().search([
+                ('oversized_from_location_id', '=', loc.id)
+            ])
+            if blocked_adjacents:
+                if not request.env.user.has_group('stock.group_stock_user'):
+                    return {'status': 'error', 'message': "Solo un Operador de inventario puede desbloquear esta ubicación."}
+                for adj in blocked_adjacents:
+                    adj.with_user(request.env.user)._do_unblock(comment=f"Desbloqueado al liberar la sobredimensión de {loc.name}.")
+                return {'status': 'ok'}
+
             is_quarantine = (
                 loc.block_reason_type == 'cuarentena' or
                 (loc.block_reason and 'cuarentena' in loc.block_reason.lower()) or
