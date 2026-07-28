@@ -293,7 +293,7 @@ class TestLocationBlocking(TransactionCase):
 
     def test_09_sobredimensionada_blocking(self):
         """Test blocking as 'sobredimensionada' via oversized wizard and unblocking successfully."""
-        # 1. Place some product stock in pos2
+        # 1. Place some product stock in pos2 and pos1
         product = self.env['product.product'].create({
             'name': 'Test Product 3',
             'type': 'consu',
@@ -303,6 +303,13 @@ class TestLocationBlocking(TransactionCase):
             'product_id': product.id,
             'location_id': self.pos2.id,
             'quantity': 5.0,
+            'company_id': self.env.company.id,
+        })
+        # Place stock in pos1 (the location we oversize from) so it doesn't auto-unblock pos2 immediately
+        self.env['stock.quant'].create({
+            'product_id': product.id,
+            'location_id': self.pos1.id,
+            'quantity': 10.0,
             'company_id': self.env.company.id,
         })
 
@@ -845,3 +852,39 @@ class TestLocationBlocking(TransactionCase):
         ], order='id desc', limit=1)
         self.assertTrue(history)
         self.assertEqual(history.comment, "Desbloqueado porque se acabó el producto sobredimensionado.")
+
+    def test_20_dupla_blocking(self):
+        """Test blocking as 'dupla' and validating that only shift leader can block/unblock and it moves under location_blocked_dupla."""
+        location_blocked_dupla = self.env.ref('wb_tech_location_blocking.location_blocked_dupla')
+        
+        # 1. Block with wizard as leader (successful)
+        wizard = self.env['wb.stock.location.block.wizard'].with_user(self.leader_user).create({
+            'location_ids': [(6, 0, [self.pos1.id])],
+            'block_reason_type': 'dupla',
+            'comment': 'Test dupla block'
+        })
+        wizard.action_block()
+        
+        # Check location state
+        self.assertEqual(self.pos1.location_id.id, location_blocked_dupla.id)
+        self.assertEqual(self.pos1.block_reason_type, 'dupla')
+        self.assertEqual(self.pos1.original_parent_id.id, self.pasillo_a.id)
+
+        # 2. Try to unblock with operator -> raises UserError
+        with self.assertRaises(UserError):
+            self.pos1.with_user(self.operator_user).action_unblock()
+
+        # 3. Unblock with leader -> success (simulating wizard)
+        action = self.pos1.with_user(self.leader_user).action_unblock()
+        self.assertEqual(action.get('res_model'), 'wb.stock.location.unblock.wizard')
+        
+        unblock_wiz = self.env['wb.stock.location.unblock.wizard'].with_user(self.leader_user).create({
+            'location_id': self.pos1.id,
+            'is_repaired': True,
+            'comment': 'Dupla resolved'
+        })
+        unblock_wiz.action_confirm_unblock()
+        
+        self.assertEqual(self.pos1.location_id.id, self.pasillo_a.id)
+        self.assertFalse(self.pos1.block_reason_type)
+        self.assertFalse(self.pos1.original_parent_id)

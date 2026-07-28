@@ -72,7 +72,7 @@
                     <field name="loc_posicion" optional="hide"/>
                     <field name="loc_frente" optional="hide"/>
                     <field name="loc_nivel" optional="hide"/>
-                    <field name="block_reason_type" decoration-info="block_reason_type in ('ciclico', 'onsite')" decoration-danger="block_reason_type in ('no_apto', 'danado')"/>
+                    <field name="block_reason_type" decoration-info="block_reason_type in ('ciclico', 'onsite', 'dupla')" decoration-danger="block_reason_type in ('no_apto', 'danado')"/>
                     <field name="original_parent_id"/>
                     <field name="reporting_parent_id"/>
                     <field name="block_date"/>
@@ -128,6 +128,7 @@
                     <filter string="No Apta" name="filter_no_apto" domain="[('block_reason_type', '=', 'no_apto')]"/>
                     <filter string="Dañada" name="filter_danado" domain="[('block_reason_type', '=', 'danado')]"/>
                     <filter string="Onsite" name="filter_onsite" domain="[('block_reason_type', '=', 'onsite')]"/>
+                    <filter string="Dupla" name="filter_dupla" domain="[('block_reason_type', '=', 'dupla')]"/>
                     <separator/>
                     <filter string="Bloqueos Vencidos" name="filter_expired_blocks" domain="[('block_expiration_date', '&lt;', context_today().strftime('%Y-%m-%d'))]"/>
                     <filter string="Bloqueos > 7 días" name="filter_old_blocks" domain="[('block_date', '&lt;', (context_today() - datetime.timedelta(days=7)).strftime('%Y-%m-%d'))]"/>

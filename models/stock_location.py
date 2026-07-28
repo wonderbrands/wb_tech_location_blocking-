@@ -15,7 +15,8 @@ class StockLocation(models.Model):
         ('sobredimensionada', 'Sobredimensionada'),
         ('cuarentena', 'Cuarentena'),
         ('danado', 'Dañada'),
-        ('onsite', 'Onsite')
+        ('onsite', 'Onsite'),
+        ('dupla', 'Dupla')
     ], string='Tipo de Bloqueo', copy=False)
     
     block_reason = fields.Char(string='Motivo de Bloqueo', db_column='block_reason_text', copy=False)
@@ -192,7 +193,7 @@ class StockLocation(models.Model):
         if is_quarantine:
             raise UserError("No se permite desbloquear manualmente una ubicación en cuarentena.")
 
-        if self.block_reason_type in ('no_apto', 'danado', 'onsite'):
+        if self.block_reason_type in ('no_apto', 'danado', 'onsite', 'dupla'):
             if not self.env.user.has_group('wb_tech_location_blocking.group_lider_de_turno'):
                 liders = self.env.ref('wb_tech_location_blocking.group_lider_de_turno').users.mapped('name')
                 raise UserError(f"Solo el Líder de turno puede realizar esta acción. Solicita a alguno de los siguientes usuarios que desbloqueen esta ubicación: {', '.join(liders)}")
@@ -277,6 +278,7 @@ class StockLocation(models.Model):
             ], limit=1)
         danado_dest = self.env.ref('wb_tech_location_blocking.location_blocked_danado', raise_if_not_found=False)
         onsite_dest = self.env.ref('wb_tech_location_blocking.location_blocked_onsite', raise_if_not_found=False)
+        dupla_dest = self.env.ref('wb_tech_location_blocking.location_blocked_dupla', raise_if_not_found=False)
         
         blocked_ids = {
             wmds_blocked.id if wmds_blocked else False,
@@ -286,11 +288,12 @@ class StockLocation(models.Model):
             cuarentena_dest.id if cuarentena_dest else False,
             danado_dest.id if danado_dest else False,
             onsite_dest.id if onsite_dest else False,
+            dupla_dest.id if dupla_dest else False,
         } - {False}
 
         for vals in vals_list:
             if wmds_blocked and vals.get('location_id') == wmds_blocked.id:
-                is_virtual = vals.get('name') in ['Ciclico', 'NoApta', 'Sobredimensionada', 'Cuarentena', 'Dañada', 'Onsite']
+                is_virtual = vals.get('name') in ['Ciclico', 'NoApta', 'Sobredimensionada', 'Cuarentena', 'Dañada', 'Onsite', 'Dupla']
                 if not is_virtual:
                     reason_type = vals.get('block_reason_type')
                     reason_text = (vals.get('block_reason') or '').lower()
@@ -302,6 +305,8 @@ class StockLocation(models.Model):
                             reason_type = 'onsite'
                         elif any(x in reason_text for x in ['no apto', 'no_apto', 'mantenimiento', 'incidencia', 'daño', 'daño estructural']):
                             reason_type = 'no_apto'
+                        elif any(x in reason_text for x in ['dupla']):
+                            reason_type = 'dupla'
                         else:
                             reason_type = 'ciclico'
                     
@@ -321,6 +326,10 @@ class StockLocation(models.Model):
                         if onsite_dest:
                             vals['location_id'] = onsite_dest.id
                             vals['block_reason_type'] = 'onsite'
+                    elif reason_type == 'dupla':
+                        if dupla_dest:
+                            vals['location_id'] = dupla_dest.id
+                            vals['block_reason_type'] = 'dupla'
 
             if vals.get('location_id') in blocked_ids:
                 if not vals.get('block_date'):
@@ -379,6 +388,7 @@ class StockLocation(models.Model):
             ], limit=1)
         danado_dest = self.env.ref('wb_tech_location_blocking.location_blocked_danado', raise_if_not_found=False)
         onsite_dest = self.env.ref('wb_tech_location_blocking.location_blocked_onsite', raise_if_not_found=False)
+        dupla_dest = self.env.ref('wb_tech_location_blocking.location_blocked_dupla', raise_if_not_found=False)
         
         blocked_ids = {
             wmds_blocked.id if wmds_blocked else False,
@@ -388,6 +398,7 @@ class StockLocation(models.Model):
             cuarentena_dest.id if cuarentena_dest else False,
             danado_dest.id if danado_dest else False,
             onsite_dest.id if onsite_dest else False,
+            dupla_dest.id if dupla_dest else False,
         } - {False}
 
         # 1. Intercept blocking writes to wmds.location_blocked and redirect them
@@ -400,6 +411,7 @@ class StockLocation(models.Model):
                 cuarentena_dest.id if cuarentena_dest else False,
                 danado_dest.id if danado_dest else False,
                 onsite_dest.id if onsite_dest else False,
+                dupla_dest.id if dupla_dest else False,
                 wmds_blocked.id,
             } - {False}
             if any(rec.id in virtual_subloc_ids for rec in self):
@@ -418,6 +430,8 @@ class StockLocation(models.Model):
                     reason_type = 'no_apto'
                 elif any(x in reason_text for x in ['cuarentena']):
                     reason_type = 'cuarentena'
+                elif any(x in reason_text for x in ['dupla']):
+                    reason_type = 'dupla'
                 else:
                     reason_type = 'ciclico'
             
@@ -442,6 +456,10 @@ class StockLocation(models.Model):
                 if cuarentena_dest:
                     vals['location_id'] = cuarentena_dest.id
                     vals['block_reason_type'] = 'cuarentena'
+            elif reason_type == 'dupla':
+                if dupla_dest:
+                    vals['location_id'] = dupla_dest.id
+                    vals['block_reason_type'] = 'dupla'
 
         # Determine reason_type if blocking
         reason_type = False
@@ -461,6 +479,8 @@ class StockLocation(models.Model):
                     reason_type = 'sobredimensionada'
                 elif cuarentena_dest and loc_id == cuarentena_dest.id:
                     reason_type = 'cuarentena'
+                elif dupla_dest and loc_id == dupla_dest.id:
+                    reason_type = 'dupla'
             
             # Ensure block_date and block_user_id are filled if not provided
             if not vals.get('block_date'):
@@ -597,9 +617,9 @@ class StockLocation(models.Model):
         if not blocked_records:
             return True
 
-        # Check permissions: if any is blocked as no_apto, danado, or onsite
+        # Check permissions: if any is blocked as no_apto, danado, onsite, or dupla
         requires_lider = blocked_records.filtered(
-            lambda r: r.block_reason_type in ('no_apto', 'danado', 'onsite')
+            lambda r: r.block_reason_type in ('no_apto', 'danado', 'onsite', 'dupla')
         )
         if requires_lider and not self.env.user.has_group('wb_tech_location_blocking.group_lider_de_turno'):
             liders = self.env.ref('wb_tech_location_blocking.group_lider_de_turno').users.mapped('name')

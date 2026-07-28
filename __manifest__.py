@@ -18,7 +18,8 @@
         'stock_barcode',
         'purchase',
         'WB_data_sale_order',
-        'wmds'
+        'wmds',
+        'kits_users_role'
     ],
     'external_dependencies': {
         'python': [

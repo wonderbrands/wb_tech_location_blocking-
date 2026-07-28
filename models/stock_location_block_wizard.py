@@ -11,7 +11,8 @@ class StockLocationBlockWizard(models.TransientModel):
     block_reason_type = fields.Selection([
         ('no_apto', 'No Apta'),
         ('danado', 'Dañada'),
-        ('onsite', 'Onsite')
+        ('onsite', 'Onsite'),
+        ('dupla', 'Dupla')
     ], string='Motivo', required=True, default='no_apto')
     
     comment = fields.Text(string='Comentario')
@@ -35,7 +36,7 @@ class StockLocationBlockWizard(models.TransientModel):
         # 1. Check permissions by reason type
         if self.block_reason_type == 'ciclico':
             raise UserError("No se puede bloquear por motivo Cíclico usando este asistente. Debe realizarse a través de WMDS.")
-        elif self.block_reason_type in ('no_apto', 'danado', 'onsite'):
+        elif self.block_reason_type in ('no_apto', 'danado', 'onsite', 'dupla'):
             if not self.env.user.has_group('wb_tech_location_blocking.group_lider_de_turno'):
                 liders = self.env.ref('wb_tech_location_blocking.group_lider_de_turno').users.mapped('name')
                 raise UserError(f"Solo el Líder de turno puede realizar esta acción. Solicita a alguno de los siguientes usuarios que bloqueen esta ubicación: {', '.join(liders)}")
@@ -57,7 +58,7 @@ class StockLocationBlockWizard(models.TransientModel):
                     ref = pending_moves.picking_id.name or pending_moves.move_id.reference or 'un movimiento'
                     raise UserError(f"No se puede bloquear la ubicación {location.complete_name} por motivo Cíclico: tiene movimientos o reservas pendientes en {ref}.")
 
-            elif self.block_reason_type in ('no_apto', 'danado', 'onsite'):
+            elif self.block_reason_type in ('no_apto', 'danado', 'onsite', 'dupla'):
                 # Validation: Sin producto (si tiene, rechazar y pedir mover primero)
                 quants = self.env['stock.quant'].sudo().search([
                     ('location_id', '=', location.id),
@@ -77,7 +78,8 @@ class StockLocationBlockWizard(models.TransientModel):
                     'ciclico': 'Ciclico',
                     'no_apto': 'NoApta',
                     'danado': 'Dañada',
-                    'onsite': 'Onsite'
+                    'onsite': 'Onsite',
+                    'dupla': 'Dupla'
                 }.get(self.block_reason_type, 'Ciclico')
                 
                 blocked_parent = self.env['stock.location'].sudo().search([

@@ -18,7 +18,8 @@ class StockLocationBlockHistory(models.Model):
         ('sobredimensionada', 'Sobredimensionada'),
         ('cuarentena', 'Cuarentena'),
         ('danado', 'Dañada'),
-        ('onsite', 'Onsite')
+        ('onsite', 'Onsite'),
+        ('dupla', 'Dupla')
     ], string='Tipo de Bloqueo')
     
     block_reason = fields.Char(string='Motivo/Comentario original')

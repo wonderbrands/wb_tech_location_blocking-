@@ -31,5 +31,11 @@
             <field name="location_id" ref="wmds.location_blocked"/>
             <field name="usage">internal</field>
         </record>
+
+        <record id="location_blocked_dupla" model="stock.location">
+            <field name="name">Dupla</field>
+            <field name="location_id" ref="wmds.location_blocked"/>
+            <field name="usage">internal</field>
+        </record>
     </data>
 </odoo>
