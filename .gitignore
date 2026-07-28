@@ -1,5 +1,25 @@
-# Ignorar archivos de configuración de IDE
-.idea/
+# Python
 __pycache__/
 *.py[cod]
-*.env
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+
+# Environments
+.env
+.env.local
+.env.*
+
+# IDEs / Editors
+.idea/
+.vscode/
+*.swp
+*~
+.DS_Store
+
+# Agents / AI Workspace configurations
+.agents/
+.gemini/
