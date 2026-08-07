@@ -37,5 +37,11 @@
             <field name="location_id" ref="wmds.location_blocked"/>
             <field name="usage">internal</field>
         </record>
+
+        <record id="location_blocked_materiales" model="stock.location">
+            <field name="name">Materiales</field>
+            <field name="location_id" ref="wmds.location_blocked"/>
+            <field name="usage">internal</field>
+        </record>
     </data>
 </odoo>
