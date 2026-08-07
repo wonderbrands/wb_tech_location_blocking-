@@ -295,7 +295,7 @@ class BlockedLocationsReportController(http.Controller):
             if loc.block_reason_type == 'ciclico':
                 return {'status': 'error', 'message': 'No se permite desbloquear manualmente una ubicación en conteo cíclico. Debe salir del conteo cíclico de WMDS.'}
 
-            if loc.block_reason_type in ('no_apto', 'danado', 'onsite', 'dupla'):
+            if loc.block_reason_type in ('no_apto', 'danado', 'onsite', 'dupla', 'materiales'):
                 if not request.env.user.has_group('wb_tech_location_blocking.group_lider_de_turno'):
                     liders = request.env.ref('wb_tech_location_blocking.group_lider_de_turno').users.mapped('name')
                     return {'status': 'error', 'message': f"Solo el Líder de turno puede realizar esta acción. Solicita a alguno de los siguientes usuarios que desbloqueen esta ubicación: {', '.join(liders)}"}
