@@ -888,3 +888,87 @@ class TestLocationBlocking(TransactionCase):
         self.assertEqual(self.pos1.location_id.id, self.pasillo_a.id)
         self.assertFalse(self.pos1.block_reason_type)
         self.assertFalse(self.pos1.original_parent_id)
+
+    def test_21_special_location_blocking_search(self):
+        """Test search for special/cyclic/blocked locations that don't match standard syntax."""
+        almacenaje = self.env['stock.location'].create({
+            'name': 'Almacenaje',
+            'location_id': self.wh_stock.id,
+            'usage': 'internal'
+        })
+        special_loc = self.env['stock.location'].create({
+            'name': 'CAB-TEST-SPECIAL',
+            'location_id': almacenaje.id,
+            'usage': 'internal'
+        })
+        standard_loc = self.env['stock.location'].create({
+            'name': 'A-P01-F1-N1',
+            'location_id': almacenaje.id,
+            'usage': 'internal'
+        })
+        
+        # Instantiate controller to call route directly
+        from odoo.addons.wb_tech_location_blocking.controllers.main import BlockedLocationsReportController
+        controller = BlockedLocationsReportController()
+        
+        from unittest.mock import patch, MagicMock
+        mock_request = MagicMock()
+        mock_request.env = self.env
+        
+        # Search with special=True
+        with patch('odoo.addons.wb_tech_location_blocking.controllers.main.request', mock_request):
+            results = controller.location_blocking_search(special=True)
+        result_ids = [res['id'] for res in results]
+        
+        # Must contain special_loc but NOT standard_loc
+        self.assertIn(special_loc.id, result_ids)
+        self.assertNotIn(standard_loc.id, result_ids)
+
+    def test_22_range_location_blocking_search(self):
+        """Test search for range locations using optimized SQL query prefix matching."""
+        almacenaje = self.env['stock.location'].create({
+            'name': 'Almacenaje',
+            'location_id': self.wh_stock.id,
+            'usage': 'internal'
+        })
+        loc_a = self.env['stock.location'].create({
+            'name': 'A-P01-F1-N1',
+            'location_id': almacenaje.id,
+            'usage': 'internal'
+        })
+        loc_b = self.env['stock.location'].create({
+            'name': 'B-P01-F1-N1',
+            'location_id': almacenaje.id,
+            'usage': 'internal'
+        })
+
+        from odoo.addons.wb_tech_location_blocking.controllers.main import BlockedLocationsReportController
+        controller = BlockedLocationsReportController()
+
+        from unittest.mock import patch, MagicMock
+        mock_request = MagicMock()
+        mock_request.env = self.env
+
+        # Search aisle A to A
+        with patch('odoo.addons.wb_tech_location_blocking.controllers.main.request', mock_request):
+            results_a = controller.location_blocking_search(
+                aisle_from='A', aisle_to='A',
+                position_from=1, position_to=99,
+                level_from=1, level_to=5,
+                front_from=1, front_to=2
+            )
+        ids_a = [res['id'] for res in results_a]
+        self.assertIn(loc_a.id, ids_a)
+        self.assertNotIn(loc_b.id, ids_a)
+
+        # Search aisle B to B
+        with patch('odoo.addons.wb_tech_location_blocking.controllers.main.request', mock_request):
+            results_b = controller.location_blocking_search(
+                aisle_from='B', aisle_to='B',
+                position_from=1, position_to=99,
+                level_from=1, level_to=5,
+                front_from=1, front_to=2
+            )
+        ids_b = [res['id'] for res in results_b]
+        self.assertIn(loc_b.id, ids_b)
+        self.assertNotIn(loc_a.id, ids_b)

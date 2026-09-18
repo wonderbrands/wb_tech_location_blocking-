@@ -1,9 +1,14 @@
 # -*- coding: utf-8 -*-
 import csv
 import io
+import re
+import logging
 from datetime import datetime
 from odoo import http
 from odoo.http import request, content_disposition
+
+_logger = logging.getLogger(__name__)
+
 
 class BlockedLocationsReportController(http.Controller):
 
@@ -114,26 +119,40 @@ class BlockedLocationsReportController(http.Controller):
 
     @http.route('/wmds/v2/engine/location_blocking/search', type='json', auth='user', methods=['POST'])
     def location_blocking_search(self, term='', only_blocked=False, **kwargs):
-        domain = [('usage', '=', 'internal')]
+        _logger.info("location_blocking_search called with: term=%r, only_blocked=%r, kwargs=%r", term, only_blocked, kwargs)
+        domain = [
+            ('usage', '=', 'internal'),
+            '|',
+            ('complete_name', '=ilike', 'WH/Stock/%'),
+            ('complete_name', '=ilike', 'Stock/%')
+        ]
         if only_blocked:
             domain.append(('original_parent_id', '!=', False))
             
-        if term:
+        special = kwargs.get('special', False)
+        if special:
+            domain.append('|')
+            domain.append(('complete_name', 'ilike', '%Almacenaje%'))
+            domain.append(('complete_name', 'ilike', '%A_Pickable%'))
+            domain.append(('name', 'not in', ['Almacenaje', 'A_Pickable']))
+            all_locs = request.env['stock.location'].sudo().search(domain)
+            loc_pattern = re.compile(r"^[A-Z]{1,2}-P\d{2}-F\d-N\d$", re.IGNORECASE)
+            locations = all_locs.filtered(lambda l: not loc_pattern.match(l.name))
+        elif term:
             domain.append('|')
             domain.append(('name', 'ilike', term))
             domain.append(('complete_name', 'ilike', term))
             locations = request.env['stock.location'].sudo().search(domain, limit=100)
         else:
-            import re
             f = {
-                'a_from': str(kwargs.get('aisle_from', 'A')).upper(),
-                'a_to': str(kwargs.get('aisle_to', 'Z')).upper(),
-                'p_from': int(kwargs.get('position_from', 1)),
-                'p_to': int(kwargs.get('position_to', 99)),
-                'l_from': int(kwargs.get('level_from', 1)),
-                'l_to': int(kwargs.get('level_to', 5)),
-                'f_from': int(kwargs.get('front_from', 1)),
-                'f_to': int(kwargs.get('front_to', 2)),
+                'a_from': str(kwargs.get('aisle_from') or 'A').upper(),
+                'a_to': str(kwargs.get('aisle_to') or 'Z').upper(),
+                'p_from': int(kwargs.get('position_from') or 1),
+                'p_to': int(kwargs.get('position_to') or 99),
+                'l_from': int(kwargs.get('level_from') or 1),
+                'l_to': int(kwargs.get('level_to') or 5),
+                'f_from': int(kwargs.get('front_from') or 1),
+                'f_to': int(kwargs.get('front_to') or 2),
             }
             
             loc_pattern = re.compile(r"([A-Z]{1,2})-P(\d{2})-F(\d)-N(\d)$", re.IGNORECASE)
@@ -161,6 +180,15 @@ class BlockedLocationsReportController(http.Controller):
                 
                 return True
 
+            if f['a_from'] == f['a_to']:
+                domain.append(('name', '=ilike', f"{f['a_from']}-%"))
+            elif len(f['a_from']) == 1 and len(f['a_to']) == 1 and ord(f['a_to']) - ord(f['a_from']) < 10:
+                aisles = [chr(c) for c in range(ord(f['a_from']), ord(f['a_to']) + 1)]
+                aisle_domain = ['|'] * (len(aisles) - 1)
+                for aisle in aisles:
+                    aisle_domain.append(('name', '=ilike', f"{aisle}-%"))
+                domain.extend(aisle_domain)
+
             all_locs = request.env['stock.location'].sudo().search(domain)
             locations = all_locs.filtered(lambda u: is_location_in_range(u.name))[:100]
             
@@ -181,6 +209,7 @@ class BlockedLocationsReportController(http.Controller):
                 'oversized_to': ', '.join(loc.oversized_location_ids.mapped('name')) or '',
                 'is_empty_location': loc.is_empty_location,
             })
+        _logger.info("location_blocking_search found locations: %d", len(res))
         return res
 
     @http.route('/wmds/v2/engine/location_blocking/get_adjacent', type='json', auth='user', methods=['POST'])
