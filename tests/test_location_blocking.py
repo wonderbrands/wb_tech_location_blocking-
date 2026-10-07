@@ -1049,3 +1049,45 @@ class TestLocationBlocking(TransactionCase):
         ml.with_context(skip_blocking_check=True).write({'quantity': 7.0})
         self.assertEqual(ml.quantity, 7.0)
 
+    def test_ml_cancel_allowed_after_late_block_but_validate_blocked(self):
+        product = self.env['product.product'].create({
+            'name': 'Test Product Cancel',
+            'type': 'consu',
+            'is_storable': True,
+        })
+        uom = self.env['product.product'].browse(product.id).uom_id
+        self.env['stock.quant'].create({
+            'product_id': product.id,
+            'location_id': self.pos1.id,
+            'quantity': 10.0,
+        })
+        move = self.env['stock.move'].create({
+            'company_id': self.env.company.id,
+            'name': 'Test move cancel',
+            'product_id': product.id,
+            'product_uom': uom.id,
+            'product_uom_qty': 2.0,
+            'location_id': self.pos1.id,
+            'location_dest_id': self.pos2.id,
+            'state': 'draft',
+        })
+        move._action_confirm()
+        move._action_assign()
+        self.assertTrue(move.move_line_ids)
+
+        # Block source after reservation
+        self.pos1.sudo().write({
+            'location_id': self.location_blocked_ciclico.id,
+            'block_reason_type': 'ciclico',
+            'original_parent_id': self.pasillo_a.id,
+        })
+
+        # Validation of the reserved line must still be blocked
+        with self.assertRaises(UserError):
+            move.move_line_ids.write({'quantity': 2.0})
+
+        # Cancellation must be allowed to release the trapped stock
+        move._action_cancel()
+        self.assertEqual(move.state, 'cancel')
+
+

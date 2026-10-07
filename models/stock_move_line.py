@@ -84,3 +84,14 @@ class StockMoveLine(models.Model):
                             % (blocked.complete_name or blocked.name)
                         )
         return super(StockMoveLine, self).write(vals)
+
+
+class StockMove(models.Model):
+    _inherit = 'stock.move'
+
+    def _action_cancel(self):
+        # Cancellation must always be possible, even when a source/destination
+        # location got blocked after the line was reserved. Otherwise the stock
+        # would be trapped in a blocked location with no way to release it.
+        return super(StockMove, self.with_context(skip_blocking_check=True))._action_cancel()
+
