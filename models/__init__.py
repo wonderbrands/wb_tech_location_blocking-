@@ -8,4 +8,5 @@ from . import stock_picking
 from . import purchase_order
 from . import cycle_count
 from . import stock_quant
+from . import stock_move_line
 from . import user_role

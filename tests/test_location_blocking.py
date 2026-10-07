@@ -972,3 +972,80 @@ class TestLocationBlocking(TransactionCase):
         ids_b = [res['id'] for res in results_b]
         self.assertIn(loc_b.id, ids_b)
         self.assertNotIn(loc_a.id, ids_b)
+
+    def _make_ml(self, **extra):
+        product = self.env['product.product'].create({
+            'name': 'Test Product ML',
+            'type': 'consu',
+            'is_storable': True,
+        })
+        uom = self.env.ref('uom.product_uom_unit')
+        vals = {
+            'product_id': product.id,
+            'product_uom_id': uom.id,
+            'location_id': self.pos1.id,
+            'location_dest_id': self.pos2.id,
+            'quantity': 1.0,
+        }
+        vals.update(extra)
+        return self.env['stock.move.line'].create(vals)
+
+    def test_ml_create_from_blocked(self):
+        self.pos1.sudo().write({
+            'location_id': self.location_blocked_ciclico.id,
+            'block_reason_type': 'ciclico',
+            'original_parent_id': self.pasillo_a.id,
+        })
+        with self.assertRaises(UserError):
+            self._make_ml(location_id=self.pos1.id)
+
+    def test_ml_create_to_blocked(self):
+        self.pos2.sudo().write({
+            'location_id': self.location_blocked_no_apto.id,
+            'block_reason_type': 'no_apto',
+            'original_parent_id': self.pasillo_a.id,
+        })
+        with self.assertRaises(UserError):
+            self._make_ml(location_dest_id=self.pos2.id)
+
+    def test_ml_create_to_child_of_blocked_container(self):
+        child = self.env['stock.location'].create({
+            'name': 'Ciclico-Hijo',
+            'location_id': self.location_blocked_ciclico.id,
+            'usage': 'internal',
+        })
+        with self.assertRaises(UserError):
+            self._make_ml(location_dest_id=child.id)
+
+    def test_ml_write_transition_to_blocked(self):
+        ml = self._make_ml()
+        self.pos1.sudo().write({
+            'location_id': self.location_blocked_cuarentena.id,
+            'block_reason_type': 'cuarentena',
+            'original_parent_id': self.pasillo_a.id,
+        })
+        with self.assertRaises(UserError):
+            ml.write({'location_dest_id': self.pos1.id})
+
+    def test_ml_write_quantity_on_blocked_location(self):
+        ml = self._make_ml()
+        self.pos1.sudo().write({
+            'location_id': self.location_blocked_ciclico.id,
+            'block_reason_type': 'ciclico',
+            'original_parent_id': self.pasillo_a.id,
+        })
+        ml.write({'location_id': self.pos1.id})
+        with self.assertRaises(UserError):
+            ml.write({'quantity': 5.0})
+
+    def test_ml_escape_hatch_allows_blocked(self):
+        self.pos1.sudo().write({
+            'location_id': self.location_blocked_ciclico.id,
+            'block_reason_type': 'ciclico',
+            'original_parent_id': self.pasillo_a.id,
+        })
+        ml = self._make_ml.with_context(skip_blocking_check=True)(location_id=self.pos1.id)
+        self.assertTrue(ml)
+        ml.with_context(skip_blocking_check=True).write({'quantity': 7.0})
+        self.assertEqual(ml.quantity, 7.0)
+
