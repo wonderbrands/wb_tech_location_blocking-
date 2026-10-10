@@ -22,7 +22,7 @@ class StockPicking(models.Model):
         res = super(StockPicking, self).button_validate()
 
         for picking in self:
-            if picking.picking_type_id.name in ('Rackeo', 'Rackeos'):
+            if picking.state == 'done' and picking.picking_type_id.name in ('Rackeo', 'Rackeos'):
                 clean_origin = picking.origin.replace('COMEX: ', '') if picking.origin else ''
                 po = self.env['purchase.order'].search(
                     [('name', '=', clean_origin)],

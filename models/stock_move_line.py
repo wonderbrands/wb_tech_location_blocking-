@@ -74,8 +74,10 @@ class StockMoveLine(models.Model):
         else:
             # Even without changing locations, a line already sitting on a blocked
             # source or destination must not be modified (other than quantity
-            # adjustments that opt-in through 'skip_blocking_check').
+            # adjustments that opt-in through 'skip_blocking_check', or state finalizing).
             if not self.env.context.get('skip_blocking_check'):
+                if vals.get('state') in ('done', 'cancel'):
+                    return super(StockMoveLine, self).write(vals)
                 for rec in self:
                     if self._is_blocked_location(rec.location_id) or self._is_blocked_location(rec.location_dest_id):
                         blocked = rec.location_id if self._is_blocked_location(rec.location_id) else rec.location_dest_id
